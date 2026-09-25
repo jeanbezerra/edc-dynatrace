@@ -1,0 +1,4 @@
+// Temperatura por sensor · °C
+// Leitura absoluta por sensor. Limites warning/critical/máximo somente do manual ou configuração aplicável à revisão de hardware/firmware; não presumidos.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:temperatura_celsius}}), by: {{{dimension:hsm}}, {{dimension:sensor}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

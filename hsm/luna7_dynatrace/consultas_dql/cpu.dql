@@ -1,0 +1,4 @@
+// CPU do appliance · %
+// Utilização de CPU normalizada para 0..100, da coleta suportada do appliance; não confundir com ocupação criptográfica.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:cpu_appliance_pct}}), by: {{{dimension:hsm}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

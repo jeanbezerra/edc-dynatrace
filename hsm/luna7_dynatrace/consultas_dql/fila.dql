@@ -1,0 +1,4 @@
+// Fila de espera por cliente/pool · operações
+// Fila explicitamente medida no cliente, pool ou aplicação; não presumir que uma fila do HSM esteja exposta na MIB.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:fila_operacoes_pendentes}}), by: {{{dimension:hsm}}, {{dimension:particao}}, {{dimension:cliente}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

@@ -1,0 +1,4 @@
+// Taxa de erro por operação · %
+// 100 × operações falhas / tentativas totais da mesma janela, por origem; tentativas=0 deve resultar em nulo, não em sucesso ou falha presumidos.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:erros_operacoes_pct}}), by: {{{dimension:hsm}}, {{dimension:particao}}, {{dimension:cliente}}, {{dimension:operacao}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

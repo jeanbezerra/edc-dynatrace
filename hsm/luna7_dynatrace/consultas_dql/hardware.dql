@@ -1,0 +1,7 @@
+// Fontes e ventiladores · estado por componente
+// Estado normalizado de componente: 0=saudável, 1=falha. Traduzir enumerações reais da origem; não presumir seus códigos.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:componente_fisico_falha}}), by: {{{dimension:hsm}}, {{dimension:componente}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd Ultimo_bucket = arrayLast(valor)
+| fieldsAdd Estado = if(isNull(Ultimo_bucket), "SEM DADOS", else: if(Ultimo_bucket == 0, "SAUDAVEL", else: if(Ultimo_bucket == 1, "FALHA · AVALIAR IMPACTO", else: "ESTADO INVALIDO")))
+| fields {{dimension:hsm}}, {{dimension:componente}}, Ultimo_bucket, Estado

@@ -1,0 +1,510 @@
+{
+  "version": 21,
+  "variables": [],
+  "tiles": {
+    "0": {
+      "type": "markdown",
+      "content": "# HSM Luna 7 · Operação\n\n**Legenda:** normal <85% | **SEV2: ≥85% e ≤95%** | **SEV3: >95%** | **SEV4: gargalo comprovado** | **SEV5: indisponibilidade confirmada no escopo afetado**. **SEV5 é a mais crítica. Normal não é SEV1.**\n\n**Escopo assumido: Luna Network HSM 7.** Período sugerido: últimas 2 horas; atualização: 1 minuto. Os cartões de estado representam o último bucket do período selecionado, não necessariamente o instante atual. **SEM MAPEAMENTO / SEM DADOS não significam saudável nem indisponível.**"
+    },
+    "1": {
+      "type": "markdown",
+      "content": "## 01 · Situação operacional"
+    },
+    "2": {
+      "type": "data",
+      "title": "Severidade por escopo",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Severidade por escopo\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "3": {
+      "type": "markdown",
+      "content": "Apresenta a classificação operacional já avaliada pelo processo de incidentes, separando serviço, partição e equipamento para não transformar automaticamente a falha de um membro redundante em queda do serviço. **Máximo: SEV5**; **SEV1** fica reservado a acompanhamento informativo, como proposta, sem marcar operação normal como incidente; **SEV2 ≥85% até 95%**, **SEV3 >95%**, **SEV4 gargalo comprovado** e **SEV5 indisponibilidade confirmada**. O cartão mostra o último bucket do período selecionado; ausência de amostra é **SEM DADOS**, nunca normal."
+    },
+    "4": {
+      "type": "data",
+      "title": "Disponibilidade funcional · 0/1",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Disponibilidade funcional · 0/1\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "5": {
+      "type": "markdown",
+      "content": "Mostra o resultado de um teste funcional autorizado no caminho real da aplicação, sem tratar resposta a ping ou SNMP como prova suficiente de operação criptográfica. **Máximo: 1 = teste bem-sucedido**; **0 = falha a confirmar e correlacionar**; indisponibilidade confirmada do serviço, da partição ou do equipamento é **SEV5 no respectivo escopo**. **85%/95% não se aplicam ao estado binário**; sem amostra ou sem execução do teste, mostrar **SEM DADOS**, e não concluir que o HSM caiu."
+    },
+    "6": {
+      "type": "data",
+      "title": "HA · membros disponíveis / esperados",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"HA · membros disponíveis / esperados\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "7": {
+      "type": "markdown",
+      "content": "Compara os membros disponíveis com o inventário esperado de cada grupo HA, observado no cliente que utiliza o serviço. **Máximo: quantidade esperada, não um número fixo**; menos membros disponíveis significa perda de redundância, mas não prova interrupção do serviço; zero membros exige confirmação funcional para **SEV5 do serviço**. A indisponibilidade de um membro é **SEV5 daquele equipamento**; sobrecarga ou filas nos sobreviventes podem caracterizar **SEV4**. **85%/95% não são thresholds de saúde de HA**."
+    },
+    "8": {
+      "type": "data",
+      "title": "Idade da última coleta válida · segundos",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Idade da última coleta válida · segundos\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "9": {
+      "type": "markdown",
+      "content": "Indica há quanto tempo chegou a última coleta válida, evitando que um valor antigo permaneça com aparência de saudável. **Não há máximo físico**; adotar inicialmente **180 s para uma coleta a cada 60 s**, como parâmetro operacional proposto, e ajustar ao intervalo efetivo; acima dessa janela, sinalizar **TELEMETRIA DESATUALIZADA**. **85%/95% não se aplicam** e ausência de coleta não é, isoladamente, **SEV5 do HSM**; verificar coletor, caminho de rede, autenticação e o teste funcional independente."
+    },
+    "10": {
+      "type": "markdown",
+      "content": "## 02 · Capacidade do HSM"
+    },
+    "11": {
+      "type": "data",
+      "title": "Utilização criptográfica real · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Utilização criptográfica real · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "12": {
+      "type": "markdown",
+      "content": "Acompanha a utilização real do motor criptográfico somente quando a origem expõe um percentual de ocupação com semântica comprovada; **hsmPerformance indica nível de desempenho e não deve alimentar este gráfico**. **Máximo: 100% de ocupação**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Elevar para **SEV4** somente com evidência de gargalo, como latência fora do objetivo acompanhada de fila; indisponibilidade confirmada é **SEV5**. Sem a métrica real, manter **NÃO COLETADO**, em vez de inferir uso a partir de TPS sem capacidade homologada."
+    },
+    "13": {
+      "type": "data",
+      "title": "Armazenamento ocupado por partição · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Armazenamento ocupado por partição · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "14": {
+      "type": "markdown",
+      "content": "Mostra o espaço ocupado na partição, calculado por **bytes em uso ÷ capacidade total da própria partição ×100**, sem confundir esse armazenamento com RAM do appliance. **Máximo: 100% da capacidade total reportada**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Conferir também bytes livres e tendência de crescimento; **SEV4** exige restrição efetiva à operação e **SEV5**, indisponibilidade confirmada no escopo afetado. Não excluir chaves ou objetos como ação automática para liberar espaço."
+    },
+    "15": {
+      "type": "data",
+      "title": "Armazenamento alocado no HSM · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Armazenamento alocado no HSM · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "16": {
+      "type": "markdown",
+      "content": "Mostra a parcela do armazenamento global alocada no HSM, usando **bytes alocados ÷ bytes totais ×100**, como visão de planejamento de capacidade. **Máximo: 100% do total reportado**; **SEV2 ≥85% até 95%** e **SEV3 >95%**, com revisão de aplicabilidade quando a alocação integral for intencional. **Alocação global não equivale automaticamente a partições cheias nem a falta de espaço para novas chaves**; correlacionar o espaço livre dentro de cada partição antes de declarar gargalo **SEV4** ou indisponibilidade **SEV5**."
+    },
+    "17": {
+      "type": "data",
+      "title": "Sessões utilizadas / limite aplicável · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Sessões utilizadas / limite aplicável · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "18": {
+      "type": "markdown",
+      "content": "Apresenta **sessões simultâneas em uso ÷ limite efetivo do mesmo escopo ×100**, mantendo visíveis cliente e partição para localizar concentração ou vazamento de sessões. **Máximo: limite confirmado para esse pool, cliente ou partição**, sem adotar um valor universal para Luna 7; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Espera por sessão, esgotamento do pool ou aumento de latência podem confirmar **SEV4**; falha funcional que torne o serviço indisponível é **SEV5**. Sem limite conhecido, mostrar somente a contagem bruta e não fabricar um percentual."
+    },
+    "19": {
+      "type": "markdown",
+      "content": "## 03 · Appliance e rede"
+    },
+    "20": {
+      "type": "data",
+      "title": "CPU do appliance · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"CPU do appliance · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "21": {
+      "type": "markdown",
+      "content": "Exibe o maior percentual de CPU do appliance observado em cada minuto para destacar picos sem os diluir na média entre equipamentos. **Máximo: 100% para a utilização normalizada**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. CPU elevada deve ser correlacionada com latência, filas e atividade do appliance antes de ser classificada como gargalo **SEV4**; isoladamente não confirma indisponibilidade **SEV5**. Não somar percentuais de múltiplos núcleos como se o resultado ainda tivesse máximo de 100%."
+    },
+    "22": {
+      "type": "data",
+      "title": "Memória RAM do appliance · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Memória RAM do appliance · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "23": {
+      "type": "markdown",
+      "content": "Acompanha o percentual de memória RAM efetivamente comprometida conforme a semântica validada do coletor, sem confundir RAM com armazenamento de chaves ou considerar todo cache recuperável como pressão real. **Máximo: 100% da RAM utilizável reportada**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Confirmar pressão efetiva, falhas de alocação e impacto no atendimento antes de declarar gargalo **SEV4**; indisponibilidade comprovada é **SEV5**. Uma origem com apenas memória livre requer validação adicional antes de ativar alertas."
+    },
+    "24": {
+      "type": "data",
+      "title": "Filesystem do appliance · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Filesystem do appliance · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "25": {
+      "type": "markdown",
+      "content": "Mostra a ocupação de cada filesystem relevante do appliance, sem misturar partições distintas em uma média nem confundir o disco do sistema com armazenamento interno de objetos do HSM. **Máximo: 100% da capacidade utilizável informada para o filesystem**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Falhas efetivas de escrita ou restrição ao atendimento podem elevar a **SEV4**; indisponibilidade confirmada é **SEV5**. A equipe deve preservar logs de auditoria e seguir procedimentos aprovados, sem limpeza automática de arquivos."
+    },
+    "26": {
+      "type": "data",
+      "title": "Utilização de rede por direção · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Utilização de rede por direção · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "27": {
+      "type": "markdown",
+      "content": "Compara o tráfego por segundo com a velocidade efetiva da interface, separando **recepção e transmissão** para não somar as duas direções de um enlace full-duplex. **Máximo: 100% por direção da capacidade nominal válida**; **SEV2 ≥85% até 95%** e **SEV3 >95%**. Perdas, retransmissões ou latência com contenção sustentada podem confirmar gargalo **SEV4**; perda de comunicação que resulte em indisponibilidade é **SEV5 no escopo afetado**. O percentual é inválido quando a velocidade do enlace é desconhecida ou foi coletada incorretamente."
+    },
+    "28": {
+      "type": "markdown",
+      "content": "## 04 · Desempenho observado pela aplicação"
+    },
+    "29": {
+      "type": "data",
+      "title": "Latência p95 de origem · ms",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Latência p95 de origem · ms\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "30": {
+      "type": "markdown",
+      "content": "Mostra a latência p95 calculada na janela da origem, por cliente, partição e operação, usando o máximo dos valores p95 emitidos em cada minuto; isso **não é o p95 global do período selecionado**. **Não existe máximo universal em milissegundos**: o limite é o **objetivo de latência homologado por operação**, que deve ser configurado antes do alerta. **85%/95% não se aplicam diretamente a milissegundos**; violação sustentada do objetivo acompanhada de contenção pode confirmar **SEV4**, e interrupção funcional confirmada é **SEV5**."
+    },
+    "31": {
+      "type": "data",
+      "title": "Throughput por operação · operações/s",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Throughput por operação · operações/s\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "32": {
+      "type": "markdown",
+      "content": "Apresenta o volume efetivo de operações por segundo, separado por operação e partição, para correlacionar demanda, latência e utilização do HSM. **O máximo depende de modelo, licença, algoritmo, tamanho da chave, mecanismo e carga homologada**; não adotar um TPS universal nem interpretar pico observado como capacidade certificada. **85%/95% só se aplicam a uma razão com capacidade válida para a mesma carga**; um platô de throughput acompanhado de fila e latência pode confirmar **SEV4**, enquanto volume zero sem demanda não prova indisponibilidade **SEV5**."
+    },
+    "33": {
+      "type": "data",
+      "title": "Fila de espera por cliente/pool · operações",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Fila de espera por cliente/pool · operações\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "34": {
+      "type": "markdown",
+      "content": "Acompanha operações aguardando atendimento no cliente, pool ou aplicação que efetivamente exponha essa fila, indicando o local da medição para não atribuir toda espera ao motor criptográfico. **Máximo: capacidade configurada da fila, quando existir**; sem esse limite, exibir a contagem e não aplicar **85%/95%**. Crescimento sustentado com latência acima do objetivo ou falhas de aquisição de sessão caracteriza evidência de gargalo **SEV4**; interrupção funcional confirmada é **SEV5**. Fila não coletada deve aparecer como **NÃO COLETADO**, e nunca como zero."
+    },
+    "35": {
+      "type": "data",
+      "title": "Taxa de erro por operação · %",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Taxa de erro por operação · %\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "36": {
+      "type": "markdown",
+      "content": "Mostra **operações falhas ÷ tentativas totais ×100** da mesma janela, distinguindo timeouts, erros de sessão, autenticação e falhas criptográficas na investigação. **Máximo matemático: 100%; alvo operacional: 0% ou orçamento de erro aprovado**, sem usar **85%/95% como faixas aceitáveis de erro**. Falhas que evidenciem contenção e degradação podem compor **SEV4**; indisponibilidade confirmada do escopo é **SEV5**. Sem tentativas, manter o valor indefinido; uma única operação inválida não comprova indisponibilidade de todo o serviço."
+    },
+    "37": {
+      "type": "markdown",
+      "content": "## 05 · Saúde física"
+    },
+    "38": {
+      "type": "data",
+      "title": "Temperatura por sensor · °C",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Temperatura por sensor · °C\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "39": {
+      "type": "markdown",
+      "content": "Exibe a temperatura absoluta de cada sensor, mantendo separado o sensor interno do HSM, o do appliance e a condição ambiental quando disponíveis. **Máximo e thresholds: limites documentados para o sensor e a revisão exata do equipamento**, sem fixar um número não confirmado e sem converter Celsius em percentual de capacidade. **85%/95% não se aplicam**; alarme físico exige atuação de infraestrutura e correlação com impacto, gargalo comprovado é **SEV4** e indisponibilidade confirmada é **SEV5**. Sem limites validados, o gráfico fica sem linhas térmicas automáticas."
+    },
+    "40": {
+      "type": "data",
+      "title": "Fontes e ventiladores · estado por componente",
+      "query": "data record(Estado=\"SEM MAPEAMENTO — ver mapeamento.json. Não há dados simulados.\", Indicador=\"Fontes e ventiladores · estado por componente\")",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {}
+    },
+    "41": {
+      "type": "markdown",
+      "content": "Mostra individualmente o estado de cada fonte e ventilador monitorado, com tradução validada dos códigos da origem. **Escala normalizada: 0 = saudável e 1 = falha; não é uma capacidade percentual**, portanto **85%/95% não se aplicam**. Uma falha com redundância preservada exige tratamento conforme o impacto sem presumir queda do serviço; degradação que produza gargalo confirmado é **SEV4**, e indisponibilidade do equipamento é **SEV5**. Não impor um RPM universal nem presumir número fixo de fontes ou ventiladores."
+    },
+    "42": {
+      "type": "markdown",
+      "content": "## Regras de leitura\n\n**Precedência no mesmo escopo:** SEV5 > SEV4 > SEV3 > SEV2 > SEV1. Cruzar 95% não comprova gargalo nem indisponibilidade. Falha de membro e falha do serviço HA são incidentes de escopos diferentes. Os thresholds visuais não criam alertas nem notificações: configurar e homologar separadamente as regras de detecção e o encaminhamento.\n\n**Tratamento de dados:** não preencher ausências com zero, não carregar valores antigos como atuais, não inventar TPS/sessões/temperatura máximos e não interpretar códigos SNMP sem tradução. Ajustar o período e a atualização da interface, e validar todas as DQLs e dimensões no tenant antes de uso operacional.\n\n**Referências:** estrutura de dashboard e visualizações [D1–D4]; campos da SAFENET-HSM-MIB [T1, documentação histórica Luna 7.2]. Referências completas, limitações e checklist no guia do pacote."
+    }
+  },
+  "layouts": {
+    "0": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 5
+    },
+    "1": {
+      "x": 0,
+      "y": 5,
+      "w": 24,
+      "h": 2
+    },
+    "2": {
+      "x": 0,
+      "y": 7,
+      "w": 12,
+      "h": 6
+    },
+    "3": {
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 5
+    },
+    "4": {
+      "x": 12,
+      "y": 7,
+      "w": 12,
+      "h": 6
+    },
+    "5": {
+      "x": 12,
+      "y": 13,
+      "w": 12,
+      "h": 5
+    },
+    "6": {
+      "x": 0,
+      "y": 18,
+      "w": 12,
+      "h": 6
+    },
+    "7": {
+      "x": 0,
+      "y": 24,
+      "w": 12,
+      "h": 5
+    },
+    "8": {
+      "x": 12,
+      "y": 18,
+      "w": 12,
+      "h": 6
+    },
+    "9": {
+      "x": 12,
+      "y": 24,
+      "w": 12,
+      "h": 5
+    },
+    "10": {
+      "x": 0,
+      "y": 29,
+      "w": 24,
+      "h": 2
+    },
+    "11": {
+      "x": 0,
+      "y": 31,
+      "w": 12,
+      "h": 6
+    },
+    "12": {
+      "x": 0,
+      "y": 37,
+      "w": 12,
+      "h": 5
+    },
+    "13": {
+      "x": 12,
+      "y": 31,
+      "w": 12,
+      "h": 6
+    },
+    "14": {
+      "x": 12,
+      "y": 37,
+      "w": 12,
+      "h": 5
+    },
+    "15": {
+      "x": 0,
+      "y": 42,
+      "w": 12,
+      "h": 6
+    },
+    "16": {
+      "x": 0,
+      "y": 48,
+      "w": 12,
+      "h": 5
+    },
+    "17": {
+      "x": 12,
+      "y": 42,
+      "w": 12,
+      "h": 6
+    },
+    "18": {
+      "x": 12,
+      "y": 48,
+      "w": 12,
+      "h": 5
+    },
+    "19": {
+      "x": 0,
+      "y": 53,
+      "w": 24,
+      "h": 2
+    },
+    "20": {
+      "x": 0,
+      "y": 55,
+      "w": 12,
+      "h": 6
+    },
+    "21": {
+      "x": 0,
+      "y": 61,
+      "w": 12,
+      "h": 5
+    },
+    "22": {
+      "x": 12,
+      "y": 55,
+      "w": 12,
+      "h": 6
+    },
+    "23": {
+      "x": 12,
+      "y": 61,
+      "w": 12,
+      "h": 5
+    },
+    "24": {
+      "x": 0,
+      "y": 66,
+      "w": 12,
+      "h": 6
+    },
+    "25": {
+      "x": 0,
+      "y": 72,
+      "w": 12,
+      "h": 5
+    },
+    "26": {
+      "x": 12,
+      "y": 66,
+      "w": 12,
+      "h": 6
+    },
+    "27": {
+      "x": 12,
+      "y": 72,
+      "w": 12,
+      "h": 5
+    },
+    "28": {
+      "x": 0,
+      "y": 77,
+      "w": 24,
+      "h": 2
+    },
+    "29": {
+      "x": 0,
+      "y": 79,
+      "w": 12,
+      "h": 6
+    },
+    "30": {
+      "x": 0,
+      "y": 85,
+      "w": 12,
+      "h": 5
+    },
+    "31": {
+      "x": 12,
+      "y": 79,
+      "w": 12,
+      "h": 6
+    },
+    "32": {
+      "x": 12,
+      "y": 85,
+      "w": 12,
+      "h": 5
+    },
+    "33": {
+      "x": 0,
+      "y": 90,
+      "w": 12,
+      "h": 6
+    },
+    "34": {
+      "x": 0,
+      "y": 96,
+      "w": 12,
+      "h": 5
+    },
+    "35": {
+      "x": 12,
+      "y": 90,
+      "w": 12,
+      "h": 6
+    },
+    "36": {
+      "x": 12,
+      "y": 96,
+      "w": 12,
+      "h": 5
+    },
+    "37": {
+      "x": 0,
+      "y": 101,
+      "w": 24,
+      "h": 2
+    },
+    "38": {
+      "x": 0,
+      "y": 103,
+      "w": 12,
+      "h": 6
+    },
+    "39": {
+      "x": 0,
+      "y": 109,
+      "w": 12,
+      "h": 5
+    },
+    "40": {
+      "x": 12,
+      "y": 103,
+      "w": 12,
+      "h": 6
+    },
+    "41": {
+      "x": 12,
+      "y": 109,
+      "w": 12,
+      "h": 5
+    },
+    "42": {
+      "x": 0,
+      "y": 114,
+      "w": 24,
+      "h": 7
+    }
+  }
+}

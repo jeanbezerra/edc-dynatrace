@@ -1,0 +1,250 @@
+{
+  "metric_cards": 18,
+  "tiles": 43,
+  "mapped_cards": 0,
+  "runtime_validation": "NAO_EXECUTADA_NO_TENANT",
+  "layout_validation": "OK_SEM_SOBREPOSICOES",
+  "cards": [
+    {
+      "id": "severidade",
+      "title": "Severidade por escopo",
+      "data_tile": "2",
+      "markdown_tile": "3",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.escopo",
+        "dimensions.hsm",
+        "metrics.severidade_operacional"
+      ],
+      "source_contract": "Classificador operacional ou integração de incidentes; 0=normal, 1..5=SEV1..SEV5. Não é um campo nativo presumido."
+    },
+    {
+      "id": "disponibilidade",
+      "title": "Disponibilidade funcional · 0/1",
+      "data_tile": "4",
+      "markdown_tile": "5",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "dimensions.servico",
+        "metrics.disponibilidade_funcional"
+      ],
+      "source_contract": "Teste funcional autorizado do caminho aplicação → cliente Luna → partição, com operação e chave de teste aprovadas; não usar apenas ICMP/SNMP."
+    },
+    {
+      "id": "ha",
+      "title": "HA · membros disponíveis / esperados",
+      "data_tile": "6",
+      "markdown_tile": "7",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.grupo_ha",
+        "dimensions.hsm",
+        "metrics.ha_membros_disponiveis",
+        "metrics.ha_membros_esperados"
+      ],
+      "source_contract": "Estado observado pelo cliente Luna/HA e inventário de membros esperados. Dimensão hsm deve identificar o conjunto lógico para esta origem."
+    },
+    {
+      "id": "telemetria",
+      "title": "Idade da última coleta válida · segundos",
+      "data_tile": "8",
+      "markdown_tile": "9",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "metrics.idade_ultima_coleta_segundos"
+      ],
+      "source_contract": "Gauge de idade calculada por um observador vivo, em segundos. Deve ser acompanhado de detecção de ausência de dados do próprio observador."
+    },
+    {
+      "id": "cripto",
+      "title": "Utilização criptográfica real · %",
+      "data_tile": "11",
+      "markdown_tile": "12",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "metrics.utilizacao_criptografica_pct"
+      ],
+      "source_contract": "Percentual real de ocupação/busy do motor, apenas se exposto e documentado pela coleta. hsmPerformance NÃO é esse percentual."
+    },
+    {
+      "id": "particao",
+      "title": "Armazenamento ocupado por partição · %",
+      "data_tile": "13",
+      "markdown_tile": "14",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "dimensions.particao",
+        "metrics.particao_bytes_ocupados",
+        "metrics.particao_bytes_totais"
+      ],
+      "source_contract": "SAFENET-HSM-MIB: hsmPartitionStorageAllocatedBytes / hsmPartitionStorageTotalBytes × 100; hsmPartitionStorageAvailableBytes como conferência."
+    },
+    {
+      "id": "armazenamento_hsm",
+      "title": "Armazenamento alocado no HSM · %",
+      "data_tile": "15",
+      "markdown_tile": "16",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "metrics.hsm_bytes_alocados",
+        "metrics.hsm_bytes_totais"
+      ],
+      "source_contract": "SAFENET-HSM-MIB: hsmStorageAllocatedBytes / hsmStorageTotalBytes × 100; interpretar alocação global separadamente de ocupação por objetos."
+    },
+    {
+      "id": "sessoes",
+      "title": "Sessões utilizadas / limite aplicável · %",
+      "data_tile": "17",
+      "markdown_tile": "18",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.cliente",
+        "dimensions.hsm",
+        "dimensions.particao",
+        "metrics.sessoes_ativas",
+        "metrics.sessoes_limite"
+      ],
+      "source_contract": "Sessões simultâneas reais e limite efetivo do mesmo pool/cliente/partição. Não substituir por clientes cadastrados ou conexões NTLS."
+    },
+    {
+      "id": "cpu",
+      "title": "CPU do appliance · %",
+      "data_tile": "20",
+      "markdown_tile": "21",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "metrics.cpu_appliance_pct"
+      ],
+      "source_contract": "Utilização de CPU normalizada para 0..100, da coleta suportada do appliance; não confundir com ocupação criptográfica."
+    },
+    {
+      "id": "ram",
+      "title": "Memória RAM do appliance · %",
+      "data_tile": "22",
+      "markdown_tile": "23",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "metrics.ram_appliance_pct"
+      ],
+      "source_contract": "Percentual de RAM segundo semântica documentada da origem; distinguir memória disponível de mera memória livre e de cache recuperável."
+    },
+    {
+      "id": "disco",
+      "title": "Filesystem do appliance · %",
+      "data_tile": "24",
+      "markdown_tile": "25",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.filesystem",
+        "dimensions.hsm",
+        "metrics.filesystem_appliance_pct"
+      ],
+      "source_contract": "Ocupação de cada filesystem relevante suportado pela origem, com denominador e reservas documentados."
+    },
+    {
+      "id": "rede",
+      "title": "Utilização de rede por direção · %",
+      "data_tile": "26",
+      "markdown_tile": "27",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.direcao",
+        "dimensions.hsm",
+        "dimensions.interface",
+        "metrics.rede_utilizacao_pct"
+      ],
+      "source_contract": "100 × bits/s ÷ velocidade efetiva do enlace, separadamente para RX e TX. Taxas calculadas a partir de contadores com tratamento de resets."
+    },
+    {
+      "id": "latencia",
+      "title": "Latência p95 de origem · ms",
+      "data_tile": "29",
+      "markdown_tile": "30",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.cliente",
+        "dimensions.hsm",
+        "dimensions.operacao",
+        "dimensions.particao",
+        "metrics.latencia_p95_ms"
+      ],
+      "source_contract": "p95 em ms calculado pela origem em janelas conhecidas; não calcular média de percentis. Alternativamente, substituir a DQL por percentile de distribuição compatível."
+    },
+    {
+      "id": "throughput",
+      "title": "Throughput por operação · operações/s",
+      "data_tile": "31",
+      "markdown_tile": "32",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "dimensions.operacao",
+        "dimensions.particao",
+        "metrics.operacoes_por_segundo"
+      ],
+      "source_contract": "Gauge de taxa real de operações por segundo, ou DQL adaptada para contador com delta/rate apropriado; distinguir algoritmo, mecanismo e tamanho de chave."
+    },
+    {
+      "id": "fila",
+      "title": "Fila de espera por cliente/pool · operações",
+      "data_tile": "33",
+      "markdown_tile": "34",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.cliente",
+        "dimensions.hsm",
+        "dimensions.particao",
+        "metrics.fila_operacoes_pendentes"
+      ],
+      "source_contract": "Fila explicitamente medida no cliente, pool ou aplicação; não presumir que uma fila do HSM esteja exposta na MIB."
+    },
+    {
+      "id": "erros",
+      "title": "Taxa de erro por operação · %",
+      "data_tile": "35",
+      "markdown_tile": "36",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.cliente",
+        "dimensions.hsm",
+        "dimensions.operacao",
+        "dimensions.particao",
+        "metrics.erros_operacoes_pct"
+      ],
+      "source_contract": "100 × operações falhas / tentativas totais da mesma janela, por origem; tentativas=0 deve resultar em nulo, não em sucesso ou falha presumidos."
+    },
+    {
+      "id": "temperatura",
+      "title": "Temperatura por sensor · °C",
+      "data_tile": "38",
+      "markdown_tile": "39",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.hsm",
+        "dimensions.sensor",
+        "metrics.temperatura_celsius"
+      ],
+      "source_contract": "Leitura absoluta por sensor. Limites warning/critical/máximo somente do manual ou configuração aplicável à revisão de hardware/firmware; não presumidos."
+    },
+    {
+      "id": "hardware",
+      "title": "Fontes e ventiladores · estado por componente",
+      "data_tile": "40",
+      "markdown_tile": "41",
+      "status": "PENDENTE",
+      "missing": [
+        "dimensions.componente",
+        "dimensions.hsm",
+        "metrics.componente_fisico_falha"
+      ],
+      "source_contract": "Estado normalizado de componente: 0=saudável, 1=falha. Traduzir enumerações reais da origem; não presumir seus códigos."
+    }
+  ]
+}

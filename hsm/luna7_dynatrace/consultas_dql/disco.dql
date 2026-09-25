@@ -1,0 +1,4 @@
+// Filesystem do appliance · %
+// Ocupação de cada filesystem relevante suportado pela origem, com denominador e reservas documentados.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:filesystem_appliance_pct}}), by: {{{dimension:hsm}}, {{dimension:filesystem}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

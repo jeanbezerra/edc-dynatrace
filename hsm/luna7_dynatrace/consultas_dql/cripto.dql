@@ -1,0 +1,4 @@
+// Utilização criptográfica real · %
+// Percentual real de ocupação/busy do motor, apenas se exposto e documentado pela coleta. hsmPerformance NÃO é esse percentual.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:utilizacao_criptografica_pct}}), by: {{{dimension:hsm}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

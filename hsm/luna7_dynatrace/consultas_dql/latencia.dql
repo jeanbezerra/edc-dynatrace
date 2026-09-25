@@ -1,0 +1,4 @@
+// Latência p95 de origem · ms
+// p95 em ms calculado pela origem em janelas conhecidas; não calcular média de percentis. Alternativamente, substituir a DQL por percentile de distribuição compatível.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:latencia_p95_ms}}), by: {{{dimension:hsm}}, {{dimension:particao}}, {{dimension:cliente}}, {{dimension:operacao}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

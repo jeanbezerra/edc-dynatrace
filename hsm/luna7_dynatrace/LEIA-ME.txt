@@ -1,0 +1,15 @@
+LUNA 7 / DYNATRACE — MODELO OPERACIONAL PARAMETRIZÁVEL
+
+1. Leia GUIA-dashboard-luna7.md.
+2. Edite mapeamento.json com métricas e dimensões reais do tenant.
+3. Execute: python gerar_dashboard.py --config mapeamento.json --out ./gerado
+4. Valide todas as DQLs no tenant antes de publicar.
+
+O JSON inicial contém 18 cartões SEM MAPEAMENTO, não dados simulados.
+SEV2: >=85% e <=95%. SEV3: >95%. SEV4: gargalo. SEV5: indisponibilidade.
+SEV5 é a maior criticidade. NORMAL não é SEV1.
+
+Document Store/dtctl: dashboard-luna7.document.json.
+Conteúdo interno apenas: dashboard-luna7.content.json.
+O pacote não é para Dashboards Classic e não cria alertas.
+Não houve publicação nem teste de execução no ambiente do usuário.

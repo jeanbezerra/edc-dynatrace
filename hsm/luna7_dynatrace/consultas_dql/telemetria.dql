@@ -1,0 +1,4 @@
+// Idade da última coleta válida · segundos
+// Gauge de idade calculada por um observador vivo, em segundos. Deve ser acompanhado de detecção de ausência de dados do próprio observador.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:idade_ultima_coleta_segundos}}), by: {{{dimension:hsm}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

@@ -1,0 +1,6 @@
+// Armazenamento ocupado por partição · %
+// SAFENET-HSM-MIB: hsmPartitionStorageAllocatedBytes / hsmPartitionStorageTotalBytes × 100; hsmPartitionStorageAvailableBytes como conferência.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries {ocupado = max({{metric:particao_bytes_ocupados}}), capacidade = min({{metric:particao_bytes_totais}})}, by: {{{dimension:hsm}}, {{dimension:particao}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd valor = if(capacidade[] > 0, 100.0 * ocupado[] / capacidade[], else: null)
+| fields timeframe, interval, {{dimension:hsm}}, {{dimension:particao}}, valor

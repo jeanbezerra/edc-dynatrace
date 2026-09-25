@@ -1,0 +1,7 @@
+// HA · membros disponíveis / esperados
+// Estado observado pelo cliente Luna/HA e inventário de membros esperados. Dimensão hsm deve identificar o conjunto lógico para esta origem.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries {ativos = min({{metric:ha_membros_disponiveis}}), esperados = max({{metric:ha_membros_esperados}})}, by: {{{dimension:hsm}}, {{dimension:grupo_ha}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd Disponiveis = arrayLast(ativos), Esperados = arrayLast(esperados)
+| fieldsAdd Estado = if(isNull(Disponiveis) or isNull(Esperados) or Esperados <= 0, "SEM DADOS / INVENTARIO INVALIDO", else: if(Disponiveis == 0, "NENHUM MEMBRO · VALIDAR SEV5", else: if(Disponiveis < Esperados, "REDUNDANCIA DEGRADADA", else: if(Disponiveis > Esperados, "REVISAR INVENTARIO", else: "MEMBROS ESPERADOS DISPONIVEIS"))))
+| fields {{dimension:hsm}}, {{dimension:grupo_ha}}, Disponiveis, Esperados, Estado

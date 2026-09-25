@@ -1,0 +1,4 @@
+// Utilização de rede por direção · %
+// 100 × bits/s ÷ velocidade efetiva do enlace, separadamente para RX e TX. Taxas calculadas a partir de contadores com tratamento de resets.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:rede_utilizacao_pct}}), by: {{{dimension:hsm}}, {{dimension:interface}}, {{dimension:direcao}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

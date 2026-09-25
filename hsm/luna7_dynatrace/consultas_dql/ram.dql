@@ -1,0 +1,4 @@
+// Memória RAM do appliance · %
+// Percentual de RAM segundo semântica documentada da origem; distinguir memória disponível de mera memória livre e de cache recuperável.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:ram_appliance_pct}}), by: {{{dimension:hsm}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

@@ -1,0 +1,7 @@
+// Disponibilidade funcional · 0/1
+// Teste funcional autorizado do caminho aplicação → cliente Luna → partição, com operação e chave de teste aprovadas; não usar apenas ICMP/SNMP.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = min({{metric:disponibilidade_funcional}}), by: {{{dimension:hsm}}, {{dimension:servico}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd Ultimo_bucket = arrayLast(valor)
+| fieldsAdd Estado = if(isNull(Ultimo_bucket), "SEM DADOS", else: if(Ultimo_bucket == 1, "TESTE OK", else: if(Ultimo_bucket == 0, "FALHA FUNCIONAL · VALIDAR SEV5", else: "ESTADO INVALIDO")))
+| fields {{dimension:hsm}}, {{dimension:servico}}, Ultimo_bucket, Estado

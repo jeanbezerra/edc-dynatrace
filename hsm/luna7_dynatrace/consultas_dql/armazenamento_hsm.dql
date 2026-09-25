@@ -1,0 +1,6 @@
+// Armazenamento alocado no HSM · %
+// SAFENET-HSM-MIB: hsmStorageAllocatedBytes / hsmStorageTotalBytes × 100; interpretar alocação global separadamente de ocupação por objetos.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries {ocupado = max({{metric:hsm_bytes_alocados}}), capacidade = min({{metric:hsm_bytes_totais}})}, by: {{{dimension:hsm}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd valor = if(capacidade[] > 0, 100.0 * ocupado[] / capacidade[], else: null)
+| fields timeframe, interval, {{dimension:hsm}}, valor

@@ -1,0 +1,4 @@
+// Throughput por operação · operações/s
+// Gauge de taxa real de operações por segundo, ou DQL adaptada para contador com delta/rate apropriado; distinguir algoritmo, mecanismo e tamanho de chave.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = avg({{metric:operacoes_por_segundo}}), by: {{{dimension:hsm}}, {{dimension:particao}}, {{dimension:operacao}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}

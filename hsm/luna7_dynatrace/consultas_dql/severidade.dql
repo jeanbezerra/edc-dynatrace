@@ -1,0 +1,7 @@
+// Severidade por escopo
+// Classificador operacional ou integração de incidentes; 0=normal, 1..5=SEV1..SEV5. Não é um campo nativo presumido.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries valor = max({{metric:severidade_operacional}}), by: {{{dimension:hsm}}, {{dimension:escopo}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd Ultimo_bucket = arrayLast(valor)
+| fieldsAdd Estado = if(isNull(Ultimo_bucket), "SEM DADOS", else: if(Ultimo_bucket == 0, "NORMAL", else: if(in(Ultimo_bucket, array(1, 2, 3, 4, 5)), concat("SEV", toString(Ultimo_bucket)), else: "ESTADO INVALIDO")))
+| fields {{dimension:hsm}}, {{dimension:escopo}}, Ultimo_bucket, Estado

@@ -1,0 +1,6 @@
+// Sessões utilizadas / limite aplicável · %
+// Sessões simultâneas reais e limite efetivo do mesmo pool/cliente/partição. Não substituir por clientes cadastrados ou conexões NTLS.
+// MODELO COM PLACEHOLDERS — NÃO EXECUTAR SEM MAPEAR
+timeseries {ocupado = max({{metric:sessoes_ativas}}), capacidade = min({{metric:sessoes_limite}})}, by: {{{dimension:hsm}}, {{dimension:particao}}, {{dimension:cliente}}}, interval: 1m, filter: {$HSM == "" or {{dimension:hsm}} == $HSM}
+| fieldsAdd valor = if(capacidade[] > 0, 100.0 * ocupado[] / capacidade[], else: null)
+| fields timeframe, interval, {{dimension:hsm}}, {{dimension:particao}}, {{dimension:cliente}}, valor

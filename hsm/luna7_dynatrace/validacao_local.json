@@ -1,0 +1,18 @@
+{
+  "status": "PASSOU_TESTES_LOCAIS",
+  "checks": [
+    "Fronteiras: 84.99 NORMAL; 85 SEV2; 95 SEV2; 95.01 e 100 SEV3; nulo SEM DADOS",
+    "IDs correspondentes, grade de 24 colunas e ausência de sobreposição",
+    "18 explicações com um parágrafo, imediatamente abaixo dos respectivos indicadores",
+    "Entrega padrão sem métricas fictícias: 18 avisos SEM MAPEAMENTO",
+    "Substituição isolada de todos os placeholders e habilitação condicional do filtro HSM",
+    "Thresholds exatos: SEV2 ≥85; SEV3 >95; temperatura sem máximo presumido"
+  ],
+  "not_validated": [
+    "Execução e semântica DQL no tenant",
+    "Existência real das métricas e dimensões",
+    "Importação e renderização no app Dynatrace",
+    "Regras de alerta, persistência e notificações",
+    "Limites da revisão de hardware e firmware instalada"
+  ]
+}
