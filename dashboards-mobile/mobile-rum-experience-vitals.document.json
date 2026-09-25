@@ -12,7 +12,9 @@
         "editable": true,
         "input": "Android,iOS",
         "multiple": true,
-        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        "defaultValue": [
+          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        ]
       },
       {
         "version": 2,
@@ -29,9 +31,8 @@
         "type": "query",
         "visible": true,
         "editable": true,
-        "input": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| filter isNotNull(frontend.name) and frontend.name != \"\"\n| dedup frontend.name\n| fields frontend.name\n| sort frontend.name asc",
-        "multiple": true,
-        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        "input": "timeseries app_starts = sum(dt.frontend.mobile.app_start.count, scalar: true), by: {frontend.name}, from: -30d\n| filter isNotNull(frontend.name) and frontend.name != \"\"\n| fields frontend.name\n| sort frontend.name asc",
+        "multiple": false
       }
     ],
     "tiles": {
@@ -51,7 +52,7 @@
         "type": "data",
         "title": "Usuários ativos estimados",
         "description": "Usuários/dispositivos ativos no período e escopo selecionados.",
-        "query": "timeseries usuarios_ativos = countDistinct(dt.frontend.user.active.estimated_count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
+        "query": "timeseries usuarios_ativos = countDistinct(dt.frontend.user.active.estimated_count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -60,7 +61,7 @@
         "type": "data",
         "title": "Sessões ativas estimadas",
         "description": "Base para detectar quedas ou picos de tráfego.",
-        "query": "timeseries sessoes_ativas = countDistinct(dt.frontend.session.active.estimated_count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
+        "query": "timeseries sessoes_ativas = countDistinct(dt.frontend.session.active.estimated_count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -69,7 +70,7 @@
         "type": "data",
         "title": "Ações de usuário",
         "description": "Volume total de ações significativas no período.",
-        "query": "timeseries acoes = sum(dt.frontend.user_action.count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
+        "query": "timeseries acoes = sum(dt.frontend.user_action.count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -78,7 +79,7 @@
         "type": "data",
         "title": "Erros de frontend",
         "description": "Exceções, crashes, ANRs e demais erros capturados.",
-        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
+        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -87,7 +88,7 @@
         "type": "data",
         "title": "Crashes",
         "description": "Crashes observados no período selecionado.",
-        "query": "timeseries crashes = sum(dt.frontend.error.count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and error.type == \"crash\"}",
+        "query": "timeseries crashes = sum(dt.frontend.error.count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and error.type == \"crash\"}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -96,7 +97,7 @@
         "type": "data",
         "title": "Cold start P75 · ms",
         "description": "P75 da inicialização a frio; sinal de experiência de abertura.",
-        "query": "timeseries cold_start_p75_ms = percentile(dt.frontend.mobile.app_start.duration, 75, rollup: avg, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and app_start.type == \"cold\"}",
+        "query": "timeseries cold_start_p75_ms = percentile(dt.frontend.mobile.app_start.duration, 75, rollup: avg, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and app_start.type == \"cold\"}",
         "visualization": "singleValue",
         "visualizationSettings": {},
         "querySettings": {}
@@ -105,7 +106,7 @@
         "type": "data",
         "title": "Tráfego · usuários e sessões por plataforma",
         "description": "Evidência para alertas de queda e pico de tráfego.",
-        "query": "timeseries {\n  usuarios_ativos = countDistinct(dt.frontend.user.active.estimated_count),\n  sessoes_ativas = countDistinct(dt.frontend.session.active.estimated_count)\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries {\n  usuarios_ativos = countDistinct(dt.frontend.user.active.estimated_count),\n  sessoes_ativas = countDistinct(dt.frontend.session.active.estimated_count)\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -114,7 +115,7 @@
         "type": "data",
         "title": "Ação de usuário P75 · ms",
         "description": "Sinal de lentidão de ação; candidato a baseline auto-adaptativo.",
-        "query": "timeseries acao_p75_ms = percentile(dt.frontend.user_action.duration, 75, rollup: avg), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries acao_p75_ms = percentile(dt.frontend.user_action.duration, 75, rollup: avg), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -123,7 +124,7 @@
         "type": "data",
         "title": "App start P75 · cold, warm e hot · ms",
         "description": "Separa tipo de abertura e plataforma; app start duration possui alerta nativo.",
-        "query": "timeseries app_start_p75_ms = percentile(dt.frontend.mobile.app_start.duration, 75, rollup: avg), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app_start.type}",
+        "query": "timeseries app_start_p75_ms = percentile(dt.frontend.mobile.app_start.duration, 75, rollup: avg), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app_start.type}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -132,7 +133,7 @@
         "type": "data",
         "title": "Erros · crash, ANR e exception",
         "description": "Volume temporal dos principais sinais de confiabilidade mobile.",
-        "query": "timeseries {\n  crashes = sum(dt.frontend.error.count, filter: {error.type == \"crash\"}),\n  anrs = sum(dt.frontend.error.count, filter: {error.type == \"anr\"}),\n  exceptions = sum(dt.frontend.error.count, filter: {error.type == \"exception\"})\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries {\n  crashes = sum(dt.frontend.error.count, filter: {error.type == \"crash\"}),\n  anrs = sum(dt.frontend.error.count, filter: {error.type == \"anr\"}),\n  exceptions = sum(dt.frontend.error.count, filter: {error.type == \"exception\"})\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -145,7 +146,7 @@
         "type": "data",
         "title": "Duração das ações · P50, P75 e P95 · ms",
         "description": "Compara experiência típica, recomendada para monitoramento e cauda.",
-        "query": "timeseries {\n  p50_ms = percentile(dt.frontend.user_action.duration, 50, rollup: avg),\n  p75_ms = percentile(dt.frontend.user_action.duration, 75, rollup: avg),\n  p95_ms = percentile(dt.frontend.user_action.duration, 95, rollup: avg)\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries {\n  p50_ms = percentile(dt.frontend.user_action.duration, 50, rollup: avg),\n  p75_ms = percentile(dt.frontend.user_action.duration, 75, rollup: avg),\n  p95_ms = percentile(dt.frontend.user_action.duration, 95, rollup: avg)\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -154,7 +155,7 @@
         "type": "data",
         "title": "Duração dos requests · P50, P75 e P95 · ms",
         "description": "Mostra a experiência de rede/API observada pelo aplicativo.",
-        "query": "timeseries {\n  p50_ms = percentile(dt.frontend.request.duration, 50, rollup: avg),\n  p75_ms = percentile(dt.frontend.request.duration, 75, rollup: avg),\n  p95_ms = percentile(dt.frontend.request.duration, 95, rollup: avg)\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries {\n  p50_ms = percentile(dt.frontend.request.duration, 50, rollup: avg),\n  p75_ms = percentile(dt.frontend.request.duration, 75, rollup: avg),\n  p95_ms = percentile(dt.frontend.request.duration, 95, rollup: avg)\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -163,7 +164,7 @@
         "type": "data",
         "title": "Volume de ações de usuário",
         "description": "Mudanças de demanda, adoção e possíveis quedas de instrumentação.",
-        "query": "timeseries acoes = sum(dt.frontend.user_action.count), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries acoes = sum(dt.frontend.user_action.count), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "barChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -172,7 +173,7 @@
         "type": "data",
         "title": "Volume de requests",
         "description": "Throughput de chamadas vistas pelo frontend mobile.",
-        "query": "timeseries requests = sum(dt.frontend.request.count), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
+        "query": "timeseries requests = sum(dt.frontend.request.count), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}",
         "visualization": "barChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -181,7 +182,7 @@
         "type": "data",
         "title": "Erros por 100 requests · %",
         "description": "Razão operacional entre erros agregados e volume de requests.",
-        "query": "timeseries {\n  erros = sum(dt.frontend.error.count),\n  requests = sum(dt.frontend.request.count)\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}\n| fieldsAdd taxa_erros_pct = 100.0 * erros[] / requests[]\n| fieldsRemove erros, requests",
+        "query": "timeseries {\n  erros = sum(dt.frontend.error.count),\n  requests = sum(dt.frontend.request.count)\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}\n| fieldsAdd taxa_erros_pct = 100.0 * erros[] / requests[]\n| fieldsRemove erros, requests",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -190,7 +191,7 @@
         "type": "data",
         "title": "Ações encerradas por timeout · %",
         "description": "Distingue lentidão percebida de ações que não concluem normalmente.",
-        "query": "timeseries {\n  total = sum(dt.frontend.user_action.count),\n  timeouts = sum(dt.frontend.user_action.count, filter: {user_action.complete_reason == \"timeout\"})\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}\n| fieldsAdd timeout_pct = 100.0 * timeouts[] / total[]\n| fieldsRemove total, timeouts",
+        "query": "timeseries {\n  total = sum(dt.frontend.user_action.count),\n  timeouts = sum(dt.frontend.user_action.count, filter: {user_action.complete_reason == \"timeout\"})\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name}\n| fieldsAdd timeout_pct = 100.0 * timeouts[] / total[]\n| fieldsRemove total, timeouts",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -199,7 +200,7 @@
         "type": "data",
         "title": "Requests ligados a traces · %",
         "description": "Cobertura de correlação frontend-backend; queda sugere lacuna de propagação.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_request\n| makeTimeseries {total = count(), com_trace = countIf(isNotNull(trace.id))}, by: {os.name}\n| fieldsAdd cobertura_trace_pct = 100.0 * com_trace[] / total[]\n| fieldsRemove total, com_trace",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_request\n| makeTimeseries {total = count(), com_trace = countIf(isNotNull(trace.id))}, by: {os.name}\n| fieldsAdd cobertura_trace_pct = 100.0 * com_trace[] / total[]\n| fieldsRemove total, com_trace",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -212,7 +213,7 @@
         "type": "data",
         "title": "Confiabilidade por tipo e plataforma",
         "description": "Totais do período para priorizar crash, ANR e exception.",
-        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, error.type}\n| fields plataforma = os.name, tipo_erro = error.type, ocorrencias = erros\n| sort ocorrencias desc",
+        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, error.type}\n| fields plataforma = os.name, tipo_erro = error.type, ocorrencias = erros\n| sort ocorrencias desc",
         "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -221,7 +222,7 @@
         "type": "data",
         "title": "Erros por release",
         "description": "Compara versões sem misturar Android e iOS.",
-        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app.short_version, error.type}\n| fields plataforma = os.name, versao = app.short_version, tipo_erro = error.type, ocorrencias = erros\n| sort ocorrencias desc\n| limit 30",
+        "query": "timeseries erros = sum(dt.frontend.error.count, scalar: true), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app.short_version, error.type}\n| fields plataforma = os.name, versao = app.short_version, tipo_erro = error.type, ocorrencias = erros\n| sort ocorrencias desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -230,7 +231,7 @@
         "type": "data",
         "title": "Top erros e sessões afetadas",
         "description": "Detalhe por assinatura para investigação e priorização.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_error\n| fieldsAdd tipo_erro = coalesce(error.type, \"reported_or_request\")\n| summarize ocorrencias = count(), sessoes_afetadas = countDistinct(dt.rum.session.id), by: {os.name, tipo_erro, exception.type, error.name, error.id}\n| sort ocorrencias desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_error\n| fieldsAdd tipo_erro = coalesce(error.type, \"reported_or_request\")\n| summarize ocorrencias = count(), sessoes_afetadas = countDistinct(dt.rum.session.id), by: {os.name, tipo_erro, exception.type, error.name, error.id}\n| sort ocorrencias desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -239,7 +240,7 @@
         "type": "data",
         "title": "Top requests com falha",
         "description": "Endpoints e códigos HTTP que mais afetam sessões mobile.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_failed_request\n| summarize falhas = count(), sessoes_afetadas = countDistinct(dt.rum.session.id), by: {os.name, http.response.status_code, url.domain, url.path}\n| sort falhas desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_failed_request\n| summarize falhas = count(), sessoes_afetadas = countDistinct(dt.rum.session.id), by: {os.name, http.response.status_code, url.domain, url.path}\n| sort falhas desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -252,7 +253,7 @@
         "type": "data",
         "title": "App start por release · P50, P75 e P95",
         "description": "Localiza regressões de inicialização por versão e tipo de abertura.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_app_start\n| summarize starts = count(), p50 = percentile(duration, 50), p75 = percentile(duration, 75), p95 = percentile(duration, 95), by: {os.name, app.short_version, app_start.type}\n| sort p75 desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_app_start\n| summarize starts = count(), p50 = percentile(duration, 50), p75 = percentile(duration, 75), p95 = percentile(duration, 95), by: {os.name, app.short_version, app_start.type}\n| sort p75 desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -261,7 +262,7 @@
         "type": "data",
         "title": "App starts · cold, warm e hot",
         "description": "Volume temporal de aberturas por plataforma e tipo.",
-        "query": "timeseries app_starts = sum(dt.frontend.mobile.app_start.count), filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app_start.type}",
+        "query": "timeseries app_starts = sum(dt.frontend.mobile.app_start.count), filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, app_start.type}",
         "visualization": "barChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -270,7 +271,7 @@
         "type": "data",
         "title": "Telas mais acessadas",
         "description": "Volume, alcance e tempo de primeiro plano por tela.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_view_summary\n| summarize visualizacoes = count(), sessoes = countDistinct(dt.rum.session.id), p75_primeiro_plano = percentile(view.foreground_time, 75), by: {os.name, view.name}\n| sort visualizacoes desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_view_summary\n| summarize visualizacoes = count(), sessoes = countDistinct(dt.rum.session.id), p75_primeiro_plano = percentile(view.foreground_time, 75), by: {os.name, view.name}\n| sort visualizacoes desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -279,7 +280,7 @@
         "type": "data",
         "title": "Qualidade por tela",
         "description": "Eventos ligados à tela: visitas, exceções, requests e falhas de request.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and isNotNull(view.name)\n| summarize visitas = countIf(characteristics.has_view_summary), excecoes = countIf(characteristics.has_exception), requests = countIf(characteristics.has_request), requests_com_falha = countIf(characteristics.has_failed_request), by: {os.name, view.name}\n| sort requests_com_falha desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and isNotNull(view.name)\n| summarize visitas = countIf(characteristics.has_view_summary), excecoes = countIf(characteristics.has_exception), requests = countIf(characteristics.has_request), requests_com_falha = countIf(characteristics.has_failed_request), by: {os.name, view.name}\n| sort requests_com_falha desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -288,7 +289,7 @@
         "type": "data",
         "title": "Dispositivos com maior impacto",
         "description": "Cruza uso e falhas por fabricante, modelo e versão de sistema.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| filter characteristics.has_view_summary or characteristics.has_crash or characteristics.has_anr\n| summarize eventos = count(), sessoes = countDistinct(dt.rum.session.id), crashes = countIf(characteristics.has_crash), anrs = countIf(characteristics.has_anr), by: {os.name, os.version, device.manufacturer, device.model.identifier}\n| sort crashes desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| filter characteristics.has_view_summary or characteristics.has_crash or characteristics.has_anr\n| summarize eventos = count(), sessoes = countDistinct(dt.rum.session.id), crashes = countIf(characteristics.has_crash), anrs = countIf(characteristics.has_anr), by: {os.name, os.version, device.manufacturer, device.model.identifier}\n| sort crashes desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -301,7 +302,7 @@
         "type": "data",
         "title": "Qualidade de sessão · legado funcional",
         "description": "Reúne duração, bounce, sessões sem erro e crash-free em uma leitura comparável.",
-        "query": "fetch user.sessions\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| expand frontend.name\n| filter in(frontend.name, array($Frontend))\n| summarize sessoes = count(), bounces = countIf(characteristics.is_bounce), sessoes_com_erro = countIf(error.count > 0), sessoes_com_crash = countIf(error.has_crash == true), duracao_media_s = avg(toLong(duration)) / 1000000000.0, duracao_p75_s = percentile(toLong(duration), 75) / 1000000000.0, views_medias = avg(view_summary_count), by: {frontend.name, os.name}\n| fieldsAdd bounce_pct = 100.0 * bounces / sessoes, error_free_pct = 100.0 * (sessoes - sessoes_com_erro) / sessoes, crash_free_pct = 100.0 * (sessoes - sessoes_com_crash) / sessoes\n| fieldsRemove bounces, sessoes_com_erro, sessoes_com_crash\n| sort sessoes desc",
+        "query": "fetch user.sessions\n| filter dt.rum.application.type == \"mobile\" and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| expand frontend.name\n| filter frontend.name == $Frontend\n| summarize sessoes = count(), bounces = countIf(characteristics.is_bounce), sessoes_com_erro = countIf(error.count > 0), sessoes_com_crash = countIf(error.has_crash == true), duracao_media_s = avg(toLong(duration)) / 1000000000.0, duracao_p75_s = percentile(toLong(duration), 75) / 1000000000.0, views_medias = avg(view_summary_count), by: {frontend.name, os.name}\n| fieldsAdd bounce_pct = 100.0 * bounces / sessoes, error_free_pct = 100.0 * (sessoes - sessoes_com_erro) / sessoes, crash_free_pct = 100.0 * (sessoes - sessoes_com_crash) / sessoes\n| fieldsRemove bounces, sessoes_com_erro, sessoes_com_crash\n| sort sessoes desc",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -310,7 +311,7 @@
         "type": "data",
         "title": "Motivos de encerramento de sessão",
         "description": "Ajuda a separar timeout natural, encerramento sintético e outros padrões.",
-        "query": "fetch user.sessions\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| expand frontend.name\n| filter in(frontend.name, array($Frontend))\n| summarize sessoes = count(), by: {os.name, end_reason}\n| sort sessoes desc",
+        "query": "fetch user.sessions\n| filter dt.rum.application.type == \"mobile\" and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario\n| expand frontend.name\n| filter frontend.name == $Frontend\n| summarize sessoes = count(), by: {os.name, end_reason}\n| sort sessoes desc",
         "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -319,7 +320,7 @@
         "type": "data",
         "title": "Adoção por país e plataforma",
         "description": "Usuários e sessões por geografia para priorizar regiões relevantes.",
-        "query": "timeseries {\n  usuarios = countDistinct(dt.frontend.user.active.estimated_count, scalar: true),\n  sessoes = countDistinct(dt.frontend.session.active.estimated_count, scalar: true)\n}, filter: {in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, geo.country.iso_code}\n| fields plataforma = os.name, pais = geo.country.iso_code, usuarios, sessoes\n| sort usuarios desc\n| limit 30",
+        "query": "timeseries {\n  usuarios = countDistinct(dt.frontend.user.active.estimated_count, scalar: true),\n  sessoes = countDistinct(dt.frontend.session.active.estimated_count, scalar: true)\n}, filter: {frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario}, by: {os.name, geo.country.iso_code}\n| fields plataforma = os.name, pais = geo.country.iso_code, usuarios, sessoes\n| sort usuarios desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
@@ -328,7 +329,7 @@
         "type": "data",
         "title": "Interações mobile capturadas",
         "description": "Toques, gestos e rotações; indicador do modelo RUM atual quando habilitado.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_user_interaction\n| summarize interacoes = count(), sessoes = countDistinct(dt.rum.session.id), by: {os.name, interaction.type}\n| sort interacoes desc",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_user_interaction\n| summarize interacoes = count(), sessoes = countDistinct(dt.rum.session.id), by: {os.name, interaction.type}\n| sort interacoes desc",
         "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -337,7 +338,7 @@
         "type": "data",
         "title": "Novos usuários capturados",
         "description": "Instalações/dispositivos vistos em sua primeira sessão capturada no período.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.is_new_user\n| summarize novos_usuarios = countDistinct(dt.rum.instance.id), by: {os.name}\n| sort novos_usuarios desc",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.is_new_user\n| summarize novos_usuarios = countDistinct(dt.rum.instance.id), by: {os.name}\n| sort novos_usuarios desc",
         "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
@@ -346,7 +347,7 @@
         "type": "data",
         "title": "Ações críticas · volume, cauda e timeout",
         "description": "Substitui a leitura operacional de key user actions sem fabricar um Apdex ou limiar global.",
-        "query": "fetch user.events\n| filter dt.rum.application.type == \"mobile\" and in(frontend.name, array($Frontend)) and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_user_action\n| fieldsAdd acao = coalesce(user_action.custom_name, interaction.type)\n| summarize acoes = count(), sessoes = countDistinct(dt.rum.session.id), p75 = percentile(duration, 75), p95 = percentile(duration, 95), timeouts = countIf(user_action.complete_reason == \"timeout\"), by: {os.name, acao}\n| sort p95 desc\n| limit 30",
+        "query": "fetch user.events\n| filter frontend.type == \"mobile\" and frontend.name == $Frontend and in(os.name, array($Plataforma)) and dt.rum.user_type == $TipoUsuario and characteristics.has_user_action\n| fieldsAdd acao = coalesce(user_action.custom_name, interaction.type)\n| summarize acoes = count(), sessoes = countDistinct(dt.rum.session.id), p75 = percentile(duration, 75), p95 = percentile(duration, 95), timeouts = countIf(user_action.complete_reason == \"timeout\"), by: {os.name, acao}\n| sort p95 desc\n| limit 30",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
