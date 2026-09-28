@@ -1,0 +1,70 @@
+fetch user.events
+| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
+// A matriz calcula todos os checks de frontend em uma Ãºnica passagem por user.events.
+| summarize {
+    hub_events = countIf(frontend.name == $frontend_hub),
+    application_events = countIf(frontend.name == $frontend_application),
+    application_url_events = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false)),
+    application_url_in_hub = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_hub),
+    application_url_in_application = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_application),
+    hub_id_count = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),
+    application_id_count = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),
+    application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request),
+    traced_application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request and isNotNull(trace.id))
+  }
+| fieldsAdd
+    wrong_mapping_pct = if(application_url_events > 0, 100.0 * application_url_in_hub / application_url_events),
+    expected_mapping_pct = if(application_url_events > 0, 100.0 * application_url_in_application / application_url_events),
+    trace_coverage_pct = if(application_requests > 0, 100.0 * traced_application_requests / application_requests)
+| fieldsAdd checks = array(
+    record(Check = "HUB RUM detected", Status = if(hub_events > 0, "OK", else: "CRITICAL"), Evidence = concat(toString(hub_events), " events")),
+    record(Check = "Angular RUM detected", Status = if(application_events > 0, "OK", else: "CRITICAL"), Evidence = concat(toString(application_events), " events")),
+    record(Check = "Single HUB instrumentation", Status = if(hub_id_count == 1, "OK", else: if(hub_id_count == 0, "NO_DATA", else: "WARNING")), Evidence = concat(toString(hub_id_count), " IDs")),
+    record(Check = "Single Angular instrumentation", Status = if(application_id_count == 1, "OK", else: if(application_id_count == 0, "NO_DATA", else: "WARNING")), Evidence = concat(toString(application_id_count), " IDs")),
+    record(Check = "Angular URL assigned to Angular frontend", Status = if($application_url == "", "NOT_CONFIGURED", else: if(coalesce(expected_mapping_pct, 0) >= 95, "OK", else: "WARNING")), Evidence = concat(toString(round(coalesce(expected_mapping_pct, 0), decimals: 1)), "%")),
+    record(Check = "Frontend requests detected", Status = if(application_requests > 0, "OK", else: "WARNING"), Evidence = concat(toString(application_requests), " requests")),
+    record(Check = "Frontend/backend correlation", Status = if(application_requests == 0, "NO_DATA", else: if(trace_coverage_pct >= 80, "OK", else: "WARNING")), Evidence = concat(toString(round(coalesce(trace_coverage_pct, 0), decimals: 1)), "% with trace.id")),
+    record(Check = "Unexpected frontend mapping", Status = if($application_url == "", "NOT_CONFIGURED", else: if(coalesce(wrong_mapping_pct, 0) >= 50, "CRITICAL", else: if(coalesce(wrong_mapping_pct, 0) > 0, "WARNING", else: "OK"))), Evidence = concat(toString(round(coalesce(wrong_mapping_pct, 0), decimals: 1)), "% application URL in HUB"))
+  )
+| fields checks
+| expand checks
+| fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
+| append [
+    // SessÃµes sÃ£o agregadas por ID para evitar arrays grandes no resumo final.
+    fetch user.events
+    | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)
+    | summarize
+        hub_events = countIf(frontend.name == $frontend_hub),
+        application_events = countIf(frontend.name == $frontend_application),
+        by: {dt.rum.session.id}
+    | summarize
+        hub_sessions = countIf(hub_events > 0),
+        application_sessions = countIf(application_events > 0),
+        shared_sessions = countIf(hub_events > 0 and application_events > 0)
+    | fieldsAdd smaller_session_set = if(hub_sessions < application_sessions, hub_sessions, else: application_sessions)
+    | fieldsAdd continuity_pct = if(smaller_session_set > 0, 100.0 * shared_sessions / smaller_session_set)
+    | fields
+        Check = "Shared sessions observed",
+        Status = if(hub_sessions > 0 and application_sessions > 0 and coalesce(continuity_pct, 0) < 5, "WARNING", else: "OK"),
+        Evidence = concat(toString(shared_sessions), " sessions; ", toString(round(coalesce(continuity_pct, 0), decimals: 1)), "%")
+  ]
+| append [
+    // Backend Ã© agregado separadamente; ausÃªncia de link Ã© somente uma evidÃªncia de triagem.
+    fetch spans
+    | filter request.is_root_span == true
+    | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name
+    | fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, "")
+    | filter $request_url == "" or contains(request_target, $request_url:triplequote, false)
+    | summarize
+        backend_requests = count(),
+        backend_linked = countIf(isNotNull(dt.rum.session.id) or dt.rum.is_linking_candidate == true)
+    | fieldsAdd backend_link_pct = if(backend_requests > 0, 100.0 * backend_linked / backend_requests)
+    | fieldsAdd checks = array(
+        record(Check = "Backend traces observed", Status = if(backend_requests > 0, "OK", else: "WARNING"), Evidence = concat(toString(backend_requests), " root spans")),
+        record(Check = "Backend spans with observed RUM link", Status = if(backend_requests == 0, "NO_DATA", else: if(backend_linked > 0, "OK", else: "WARNING")), Evidence = concat(toString(backend_linked), "/", toString(backend_requests), " linked")),
+        record(Check = "Backend without observed RUM request", Status = if(backend_requests > 0 and backend_linked == 0, "WARNING", else: "INFO"), Evidence = concat(toString(round(coalesce(backend_link_pct, 0), decimals: 1)), "% root spans with RUM link"))
+      )
+    | fields checks
+    | expand checks
+    | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
+  ]

@@ -1,0 +1,10 @@
+smartscapeNodes "SERVICE"
+| filter not in($service_name, array("", "(All services)")) and name == $service_name
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| fields
+    Source = dt.traverse.history[0][name],
+    Relationship = "calls",
+    Target = name,
+    `Target ID` = id,
+    Hop = 1
+| limit 100

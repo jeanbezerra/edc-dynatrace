@@ -1,0 +1,24 @@
+fetch user.events
+| filter $session_id != "" and dt.rum.session.id == $session_id
+// O tipo Ã© derivado das caracterÃ­sticas; characteristics.classifier nÃ£o representa toda a combinaÃ§Ã£o do evento.
+| fieldsAdd `Event type` = if(characteristics.is_invalid, "INVALID",
+    else: if(characteristics.has_error, "ERROR",
+    else: if(characteristics.has_page_summary, "PAGE_SUMMARY",
+    else: if(characteristics.has_view_summary, "VIEW_SUMMARY",
+    else: if(characteristics.has_user_action, "USER_ACTION",
+    else: if(characteristics.has_navigation, "NAVIGATION",
+    else: if(characteristics.has_user_interaction, "USER_INTERACTION",
+    else: if(characteristics.has_request, "REQUEST", else: "OTHER"))))))))
+| fields
+    Timestamp = start_time,
+    Frontend = frontend.name,
+    `Page/View URL` = coalesce(page.url.full, view.url.full),
+    `Event type`,
+    `User action` = coalesce(user_action.custom_name, user_action.type, interaction.type),
+    `Request URL` = url.full,
+    `Request method` = http.request.method,
+    `Status code` = http.response.status_code,
+    `Trace ID` = trace.id,
+    `Instrumentation ID` = dt.rum.instrumentation.id
+| sort Timestamp asc
+| limit 500

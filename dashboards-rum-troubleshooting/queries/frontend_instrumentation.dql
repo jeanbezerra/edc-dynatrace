@@ -1,0 +1,9 @@
+fetch user.events
+| filter in(frontend.name, array($frontend_hub, $frontend_application)) or isNull(frontend.name)
+| fieldsAdd
+    Frontend = coalesce(frontend.name, "UNKNOWN_FRONTEND"),
+    `Instrumentation ID` = coalesce(dt.rum.instrumentation.id, "NOT_OBSERVED"),
+    `Agent type` = coalesce(dt.rum.agent.type, "NOT_OBSERVED")
+| summarize Events = count(), Sessions = countDistinct(dt.rum.session.id), by: {Frontend, `Instrumentation ID`, `Agent type`}
+| sort Events desc
+| limit 100

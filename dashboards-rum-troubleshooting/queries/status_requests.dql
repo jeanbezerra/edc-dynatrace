@@ -1,0 +1,7 @@
+fetch user.events
+| summarize {
+    `Frontend requests` = countIf(frontend.name == $frontend_application and characteristics.has_request),
+    `Failed requests` = countIf(frontend.name == $frontend_application and characteristics.has_failed_request),
+    `Distinct request URLs` = countDistinct(if(frontend.name == $frontend_application and characteristics.has_request, url.full)),
+    `Request sessions` = countDistinct(if(frontend.name == $frontend_application and characteristics.has_request, dt.rum.session.id))
+  }

@@ -1,0 +1,15 @@
+fetch spans
+| filter span.kind == "client" and isNotNull(http.request.method)
+| filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name
+| fieldsAdd downstream = coalesce(server.address, url.domain, endpoint.name, "NOT_OBSERVED")
+| filter $request_url == "" or contains(coalesce(url.full, url.path, endpoint.name, downstream), $request_url:triplequote, false)
+// Multiplicidade corrige contagens; percentis continuam descrevendo spans observados.
+| fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)
+| fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio
+| summarize
+    Calls = sum(multiplicity),
+    Failures = sum(if(request.is_failed == true or http.response.status_code >= 400, multiplicity, else: 0)),
+    `p95 ms` = percentile(duration, 95) / 1ms,
+    by: {Caller = dt.service.name, Downstream = downstream, Method = http.request.method}
+| sort Calls desc
+| limit 50

@@ -1,0 +1,13 @@
+fetch user.events
+| filter characteristics.has_request
+| filter frontend.name == $frontend_application
+| filter $request_url == "" or contains(url.full, $request_url:triplequote, false)
+| summarize
+    Requests = count(),
+    `Trace ID observed` = countIf(isNotNull(trace.id)),
+    `Sampled trace` = countIf(trace.is_sampled == true),
+    by: {Request = url.full, `Trace context hint` = request.trace_context_hint, `Server timing hint` = request.server_timing_hint}
+| fieldsAdd `Coverage %` = round(100.0 * `Trace ID observed` / Requests, decimals: 1)
+| fieldsAdd Status = if(`Coverage %` >= 80, "OK", else: if(`Coverage %` >= 50, "WARNING", else: "CRITICAL"))
+| sort Requests desc
+| limit 50

@@ -1,0 +1,6 @@
+fetch user.events
+| summarize {
+    `HUB instrumentation IDs` = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),
+    `Application instrumentation IDs` = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),
+    `Events without frontend` = countIf(isNull(frontend.name) or frontend.name == "")
+  }
