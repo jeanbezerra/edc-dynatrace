@@ -141,7 +141,7 @@ Compare any two web frontends in a chained navigation: **upstream -> target**. T
 Add-MarkdownTile -Id "configuration" -X 0 -Y 5 -Width 24 -Height 4 -Content @'
 ### Required setup
 
-Enter exact values for `frontend_upstream` and `frontend_target`. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down.
+Select `frontend_upstream` and `frontend_target` from the automatic Frontend/Web Application catalog. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down.
 '@
 
 Add-MarkdownTile -Id "section_status" -X 0 -Y 9 -Width 24 -Height 2 -Content @'
@@ -419,8 +419,24 @@ $variables = @(
         input = "15,30,60"
         multiple = $false
     },
-    [ordered]@{ version = 2; key = "frontend_upstream"; type = "text"; visible = $true; editable = $true; defaultValue = "" },
-    [ordered]@{ version = 2; key = "frontend_target"; type = "text"; visible = $true; editable = $true; defaultValue = "" },
+    [ordered]@{
+        version = 2
+        key = "frontend_upstream"
+        type = "query"
+        visible = $true
+        editable = $true
+        input = "smartscapeNodes `"FRONTEND`"`n| filter isNotNull(name) and name != `"`"`n| dedup name`n| fields value = name`n| sort value asc`n| limit 500"
+        multiple = $false
+    },
+    [ordered]@{
+        version = 2
+        key = "frontend_target"
+        type = "query"
+        visible = $true
+        editable = $true
+        input = "smartscapeNodes `"FRONTEND`"`n| filter isNotNull(name) and name != `"`" and name != `$frontend_upstream`n| dedup name`n| fields value = name`n| sort value asc`n| limit 500"
+        multiple = $false
+    },
     [ordered]@{
         version = 2
         key = "upstream_rum_expected"

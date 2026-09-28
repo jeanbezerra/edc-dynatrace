@@ -30,7 +30,7 @@ O dashboard foi desenhado para falhar de forma controlada antes de executar uma 
 - As leituras máximas caíram de 20 scans de `user.events` e 5 de `spans` para 6 e 1, respectivamente.
 - O único scan de spans exige um `trace_id` exato; não há inventário amplo de servidores nem join entre `user.events` e `spans`.
 - O mapa de serviços consulta relações `calls` atuais do Smartscape, sem abrir outro scan de telemetria.
-- Os seletores de frontend são texto. Portanto, abrir o dashboard não dispara consultas adicionais só para preencher dropdowns.
+- Os seletores de frontend são dropdowns automáticos baseados em `smartscapeNodes "FRONTEND"`; eles consultam o catálogo topológico, sem scans de `user.events` ou `spans`.
 - Requests são agrupadas por `url.domain` e `url.path`, não por URL completa com query string.
 
 Essas proteções limitam o custo por execução, mas não tornam consultas repetidas gratuitas. Use 15 minutos primeiro e aumente somente quando o volume for insuficiente.
@@ -40,8 +40,8 @@ Essas proteções limitam o custo por execução, mas não tornam consultas repe
 | Variável | Uso |
 |---|---|
 | `analysis_window_minutes` | Janela fechada de 15, 30 ou 60 minutos. |
-| `frontend_upstream` | Nome exato do frontend que fica na frente da aplicação alvo. |
-| `frontend_target` | Nome exato do frontend que deve coletar RUM e replay. |
+| `frontend_upstream` | Seletor automático do Frontend/Web Application que fica na frente da aplicação alvo. |
+| `frontend_target` | Seletor automático do Frontend/Web Application que deve coletar RUM e replay. |
 | `upstream_rum_expected` | `DISABLED` no cenário recomendado; use `ENABLED` quando os dois frontends devem coletar. |
 | `upstream_url` | Fragmento estável de domínio ou caminho do frontend superior. |
 | `target_url` | Fragmento estável de domínio ou caminho da aplicação alvo. |
@@ -49,11 +49,11 @@ Essas proteções limitam o custo por execução, mas não tornam consultas repe
 | `request_url` | Filtro opcional de domínio, caminho ou endpoint. |
 | `trace_id` | Trace ID específico copiado do tile de requests. |
 
-Os nomes de frontend são campos de texto para manter o dashboard agnóstico e evitar scans de catálogo. Copie o valor exato de `frontend.name` do Dynatrace.
+Os dois seletores usam nós Smartscape `FRONTEND`. Esse tipo também representa as Web Applications clássicas (`dt.entity.application`), portanto o mesmo dropdown cobre os dois modelos. Como a lista vem do catálogo de entidades, uma aplicação permanece selecionável mesmo quando não produziu eventos RUM recentes. O seletor do alvo exclui automaticamente o frontend superior selecionado.
 
 ## Ordem de investigação
 
-1. Preencha os dois frontends e mantenha a janela em 15 minutos.
+1. Selecione dois Frontends/Web Applications diferentes e mantenha a janela em 15 minutos.
 2. Use `upstream_rum_expected = DISABLED` se o Agentless superior foi removido.
 3. Confira a matriz: nesse modo, qualquer evento recente do frontend superior é `CRITICAL`.
 4. Confira se existe exatamente um instrumentation ID no frontend alvo.
@@ -118,7 +118,7 @@ Validação local:
 .\validate-dashboard.ps1
 ```
 
-Validação das oito DQLs no tenant:
+Validação das oito DQLs dos tiles e das duas consultas automáticas de variáveis no tenant:
 
 ```powershell
 .\validate-dql.ps1 `

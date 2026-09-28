@@ -171,6 +171,25 @@ if ($upstreamExpectation.Count -ne 1 -or $upstreamExpectation[0].input -ne "DISA
     Add-ValidationError "upstream_rum_expected must default to the DISABLED,ENABLED CSV list."
 }
 
+foreach ($frontendVariableKey in @("frontend_upstream", "frontend_target")) {
+    $frontendVariable = @($content.variables | Where-Object { $_.key -eq $frontendVariableKey })
+    if ($frontendVariable.Count -ne 1 -or $frontendVariable[0].type -ne "query" -or $frontendVariable[0].multiple -ne $false) {
+        Add-ValidationError "$frontendVariableKey must be an automatic single-select query variable."
+        continue
+    }
+    if ($frontendVariable[0].input -notmatch '(?im)^\s*smartscapeNodes\s+"FRONTEND"\s*$') {
+        Add-ValidationError "$frontendVariableKey must load Frontend and Web Application entities from Smartscape FRONTEND nodes."
+    }
+    if ($frontendVariable[0].input -match '(?im)^\s*fetch\s+') {
+        Add-ValidationError "$frontendVariableKey must not scan telemetry to populate its dropdown."
+    }
+}
+
+$frontendTarget = @($content.variables | Where-Object { $_.key -eq "frontend_target" })
+if ($frontendTarget.Count -eq 1 -and $frontendTarget[0].input -notmatch 'name\s*!=\s*\$frontend_upstream') {
+    Add-ValidationError "frontend_target must exclude the selected frontend_upstream."
+}
+
 $unexpectedQueryFiles = @(Get-ChildItem -LiteralPath $queriesPath -Filter "*.dql" | Where-Object { $_.BaseName -notin $dataTiles.Name })
 foreach ($file in $unexpectedQueryFiles) {
     Add-ValidationError "Unexpected query file: $($file.Name)"

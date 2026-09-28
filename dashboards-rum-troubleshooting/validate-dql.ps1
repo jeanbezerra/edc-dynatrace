@@ -67,7 +67,13 @@ $validated = 0
 
 foreach ($variable in @($document.content.variables | Where-Object { $_.type -eq "query" })) {
     Write-Host "Validating variable query: $($variable.key)"
-    $output = & dtctl query $variable.input --plain 2>&1
+    $expandedVariableQuery = Expand-DashboardVariables $variable.input
+    if ($expandedVariableQuery -match '\$(analysis_window_minutes|frontend_upstream|frontend_target|upstream_rum_expected|upstream_url|target_url|session_id|request_url|trace_id)(?::\w+)?') {
+        $failures.Add("variable:$($variable.key)`nUnexpanded dashboard variable remains in query.")
+        continue
+    }
+
+    $output = & dtctl query $expandedVariableQuery --plain 2>&1
     if ($LASTEXITCODE -ne 0) {
         $failures.Add("variable:$($variable.key)`n$($output -join [Environment]::NewLine)")
     }

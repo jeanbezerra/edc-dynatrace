@@ -16,18 +16,20 @@
                                       {
                                           "version":  2,
                                           "key":  "frontend_upstream",
-                                          "type":  "text",
+                                          "type":  "query",
                                           "visible":  true,
                                           "editable":  true,
-                                          "defaultValue":  ""
+                                          "input":  "smartscapeNodes \"FRONTEND\"\n| filter isNotNull(name) and name != \"\"\n| dedup name\n| fields value = name\n| sort value asc\n| limit 500",
+                                          "multiple":  false
                                       },
                                       {
                                           "version":  2,
                                           "key":  "frontend_target",
-                                          "type":  "text",
+                                          "type":  "query",
                                           "visible":  true,
                                           "editable":  true,
-                                          "defaultValue":  ""
+                                          "input":  "smartscapeNodes \"FRONTEND\"\n| filter isNotNull(name) and name != \"\" and name != $frontend_upstream\n| dedup name\n| fields value = name\n| sort value asc\n| limit 500",
+                                          "multiple":  false
                                       },
                                       {
                                           "version":  2,
@@ -86,7 +88,7 @@
                                             },
                                   "configuration":  {
                                                         "type":  "markdown",
-                                                        "content":  "### Required setup\n\nEnter exact values for `frontend_upstream` and `frontend_target`. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down."
+                                                        "content":  "### Required setup\n\nSelect `frontend_upstream` and `frontend_target` from the automatic Frontend/Web Application catalog. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down."
                                                     },
                                   "section_status":  {
                                                          "type":  "markdown",
