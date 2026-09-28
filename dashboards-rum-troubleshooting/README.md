@@ -11,6 +11,8 @@ Dashboard técnico para diagnosticar RUM Agentless em uma aplicação AngularJS 
 - `validate-dashboard.ps1`: valida JSON, paridade entre formatos, layouts, variáveis e arquivos DQL.
 - `validate-dql.ps1`: executa todas as consultas em um tenant autenticado, substituindo as variáveis por valores reais.
 
+Os artefatos importáveis usam somente caracteres ASCII nos textos do dashboard e nas DQLs. Isso evita caracteres corrompidos quando o importador ou o terminal interpreta UTF-8 com uma página de código legada.
+
 ## Importação
 
 ### Interface do Dashboards

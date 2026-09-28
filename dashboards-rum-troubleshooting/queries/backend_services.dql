@@ -1,7 +1,7 @@
 fetch spans
 | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name
 | filter request.is_root_span == true or span.kind == "client"
-// A mesma passagem calcula trÃ¡fego de entrada e chamadas client do serviÃ§o.
+// A mesma passagem calcula trafego de entrada e chamadas client do servico.
 | fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)
 | fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio
 | summarize

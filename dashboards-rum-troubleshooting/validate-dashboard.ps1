@@ -13,11 +13,22 @@ function Add-ValidationError {
 }
 
 try {
-    $document = Get-Content -Raw -Encoding utf8 $documentPath | ConvertFrom-Json
-    $content = Get-Content -Raw -Encoding utf8 $contentPath | ConvertFrom-Json
+    $documentRaw = Get-Content -Raw -Encoding utf8 $documentPath
+    $contentRaw = Get-Content -Raw -Encoding utf8 $contentPath
+    $document = $documentRaw | ConvertFrom-Json
+    $content = $contentRaw | ConvertFrom-Json
 }
 catch {
     throw "JSON parsing failed: $($_.Exception.Message)"
+}
+
+foreach ($artifact in @(
+        [pscustomobject]@{ Name = "document JSON"; Text = $documentRaw },
+        [pscustomobject]@{ Name = "content JSON"; Text = $contentRaw }
+    )) {
+    if ($artifact.Text -match '[^\x00-\x7F]') {
+        Add-ValidationError "$($artifact.Name) contains non-ASCII characters that may render incorrectly after import."
+    }
 }
 
 if ($document.name -ne "RUM Diagnostic Explorer") {
@@ -60,8 +71,14 @@ foreach ($property in $dataTiles) {
     if (-not (Test-Path -LiteralPath $queryFile)) {
         Add-ValidationError "Missing extracted query file for '$($property.Name)'."
     }
-    elseif ((Get-Content -Raw -Encoding utf8 $queryFile).Trim() -ne $tile.query.Trim()) {
-        Add-ValidationError "Query file differs from tile query for '$($property.Name)'."
+    else {
+        $queryFileText = Get-Content -Raw -Encoding utf8 $queryFile
+        if ($queryFileText.Trim() -ne $tile.query.Trim()) {
+            Add-ValidationError "Query file differs from tile query for '$($property.Name)'."
+        }
+        if ($queryFileText -match '[^\x00-\x7F]') {
+            Add-ValidationError "Query file for '$($property.Name)' contains non-ASCII characters."
+        }
     }
 
     if ($tile.query -match '(?im)(^|[,\s])(?:from|to|timeframe)\s*:') {

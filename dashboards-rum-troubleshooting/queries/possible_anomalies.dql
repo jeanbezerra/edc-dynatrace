@@ -1,6 +1,6 @@
 fetch user.events
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
-// Uma agregaÃ§Ã£o reÃºne os sinais RUM para evitar vÃ¡rias varreduras do mesmo perÃ­odo.
+// Uma agregacao reune os sinais RUM para evitar varias varreduras do mesmo periodo.
 | summarize {
     hub_events = countIf(frontend.name == $frontend_hub),
     application_events = countIf(frontend.name == $frontend_application),
@@ -24,7 +24,7 @@ fetch user.events
 | expand checks
 | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
 | append [
-    // Continuidade Ã© calculada por session ID sem materializar arrays de alta cardinalidade.
+    // Continuidade e calculada por session ID sem materializar arrays de alta cardinalidade.
     fetch user.events
     | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)
     | summarize
@@ -43,7 +43,7 @@ fetch user.events
         Evidence = concat(toString(shared_sessions), " shared sessions; ", toString(round(coalesce(continuity_pct, 0), decimals: 1)), "% of smaller session set")
   ]
 | append [
-    // O bloco de spans acrescenta a hipÃ³tese backend sem fazer join amplo com user.events.
+    // O bloco de spans acrescenta a hipotese backend sem fazer join amplo com user.events.
     fetch spans
     | filter request.is_root_span == true
     | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name

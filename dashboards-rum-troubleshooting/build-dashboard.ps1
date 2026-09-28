@@ -17,6 +17,75 @@ $querySettings = [ordered]@{
 $tiles = [ordered]@{}
 $layouts = [ordered]@{}
 
+function ConvertTo-AsciiText {
+    param(
+        [AllowEmptyString()]
+        [Parameter(Mandatory)][string]$Text
+    )
+
+    # Dashboard imports may be decoded with a legacy code page. Keep every
+    # user-visible string and extracted DQL file ASCII-safe to avoid mojibake.
+    $mapped = $Text
+
+    # Windows PowerShell 5.1 can decode a UTF-8 script without BOM as the
+    # active ANSI code page. Repair that specific UTF-8-as-Windows-1252 form
+    # before transliterating; strict fallbacks leave correct Unicode untouched.
+    try {
+        $windows1252 = [System.Text.Encoding]::GetEncoding(
+            1252,
+            [System.Text.EncoderFallback]::ExceptionFallback,
+            [System.Text.DecoderFallback]::ExceptionFallback
+        )
+        $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+        $mapped = $strictUtf8.GetString($windows1252.GetBytes($mapped))
+    }
+    catch {
+        # Correct Unicode text is not valid UTF-8 when re-encoded as CP1252.
+    }
+
+    $replacements = @(
+        @([string][char]0x00A0, " "),
+        @([string][char]0x00B7, "-"),
+        @([string][char]0x00D7, "x"),
+        @([string][char]0x2011, "-"),
+        @([string][char]0x2013, "-"),
+        @([string][char]0x2014, "-"),
+        @([string][char]0x2018, "'"),
+        @([string][char]0x2019, "'"),
+        @([string][char]0x201C, '"'),
+        @([string][char]0x201D, '"'),
+        @([string][char]0x2026, "..."),
+        @([string][char]0x202F, " "),
+        @([string][char]0x2192, "->"),
+        @([string][char]0x2212, "-"),
+        @([string][char]0x2264, "<="),
+        @([string][char]0x2265, ">=")
+    )
+
+    foreach ($replacement in $replacements) {
+        $mapped = $mapped.Replace($replacement[0], $replacement[1])
+    }
+
+    $normalized = $mapped.Normalize([System.Text.NormalizationForm]::FormD)
+    $builder = [System.Text.StringBuilder]::new($normalized.Length)
+    foreach ($character in $normalized.ToCharArray()) {
+        $category = [System.Globalization.CharUnicodeInfo]::GetUnicodeCategory($character)
+        if ($category -in @(
+                [System.Globalization.UnicodeCategory]::NonSpacingMark,
+                [System.Globalization.UnicodeCategory]::SpacingCombiningMark,
+                [System.Globalization.UnicodeCategory]::EnclosingMark
+            )) {
+            continue
+        }
+
+        if ([int]$character -le 0x7F) {
+            [void]$builder.Append($character)
+        }
+    }
+
+    return $builder.ToString()
+}
+
 function Add-MarkdownTile {
     param(
         [Parameter(Mandatory)][string]$Id,
@@ -29,7 +98,7 @@ function Add-MarkdownTile {
 
     $tiles[$Id] = [ordered]@{
         type = "markdown"
-        content = $Content
+        content = ConvertTo-AsciiText -Text $Content
     }
     $layouts[$Id] = [ordered]@{ x = $X; y = $Y; w = $Width; h = $Height }
 }
@@ -57,11 +126,13 @@ function Add-DataTile {
         }
     }
 
+    $asciiQuery = ConvertTo-AsciiText -Text ($Query.Trim())
+
     $tiles[$Id] = [ordered]@{
         type = "data"
-        title = $Title
-        description = $Description
-        query = $Query.Trim()
+        title = ConvertTo-AsciiText -Text $Title
+        description = ConvertTo-AsciiText -Text $Description
+        query = $asciiQuery
         visualization = $Visualization
         visualizationSettings = $visualizationSettings
         querySettings = [ordered]@{
@@ -75,7 +146,7 @@ function Add-DataTile {
     $layouts[$Id] = [ordered]@{ x = $X; y = $Y; w = $Width; h = $Height }
 
     $queryPath = Join-Path $queriesDirectory "$Id.dql"
-    [System.IO.File]::WriteAllText($queryPath, $Query.Trim() + [Environment]::NewLine, $utf8NoBom)
+    [System.IO.File]::WriteAllText($queryPath, $asciiQuery + [Environment]::NewLine, $utf8NoBom)
 }
 
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
@@ -687,10 +758,10 @@ $document = [ordered]@{
     content = $content
 }
 
-$documentJson = $document | ConvertTo-Json -Depth 100
-$contentJson = $content | ConvertTo-Json -Depth 100
+$documentJson = ($document | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
+$contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.document.json"), $documentJson + [Environment]::NewLine, $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.content.json"), $contentJson + [Environment]::NewLine, $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated dashboard files and $($tiles.Count) tile definitions."

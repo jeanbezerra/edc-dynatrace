@@ -3,7 +3,7 @@ fetch spans
 | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name
 | fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, "")
 | filter $request_url == "" or contains(request_target, $request_url:triplequote, false)
-// Multiplicidade corrige ATM/ALR, agregaÃ§Ã£o de spans e read sampling.
+// Multiplicidade corrige ATM/ALR, agregacao de spans e read sampling.
 | fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)
 | fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio
 | summarize

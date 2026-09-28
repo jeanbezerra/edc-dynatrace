@@ -1,6 +1,6 @@
 fetch user.events
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
-// A matriz calcula todos os checks de frontend em uma Ãºnica passagem por user.events.
+// A matriz calcula todos os checks de frontend em uma unica passagem por user.events.
 | summarize {
     hub_events = countIf(frontend.name == $frontend_hub),
     application_events = countIf(frontend.name == $frontend_application),
@@ -30,7 +30,7 @@ fetch user.events
 | expand checks
 | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
 | append [
-    // SessÃµes sÃ£o agregadas por ID para evitar arrays grandes no resumo final.
+    // Sessoes sao agregadas por ID para evitar arrays grandes no resumo final.
     fetch user.events
     | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)
     | summarize
@@ -49,7 +49,7 @@ fetch user.events
         Evidence = concat(toString(shared_sessions), " sessions; ", toString(round(coalesce(continuity_pct, 0), decimals: 1)), "%")
   ]
 | append [
-    // Backend Ã© agregado separadamente; ausÃªncia de link Ã© somente uma evidÃªncia de triagem.
+    // Backend e agregado separadamente; ausencia de link e somente uma evidencia de triagem.
     fetch spans
     | filter request.is_root_span == true
     | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name

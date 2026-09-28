@@ -1,6 +1,6 @@
 fetch user.events
 | filter $session_id != "" and dt.rum.session.id == $session_id
-// O tipo Ã© derivado das caracterÃ­sticas; characteristics.classifier nÃ£o representa toda a combinaÃ§Ã£o do evento.
+// O tipo e derivado das caracteristicas; characteristics.classifier nao representa toda a combinacao do evento.
 | fieldsAdd `Event type` = if(characteristics.is_invalid, "INVALID",
     else: if(characteristics.has_error, "ERROR",
     else: if(characteristics.has_page_summary, "PAGE_SUMMARY",
