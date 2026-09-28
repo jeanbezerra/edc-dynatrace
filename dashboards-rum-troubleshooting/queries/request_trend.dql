@@ -1,9 +1,0 @@
-fetch user.events
-| filter characteristics.has_request
-| filter frontend.name == $frontend_application
-| filter $request_url == "" or contains(url.full, $request_url:triplequote, false)
-| makeTimeseries {
-    Requests = count(),
-    Errors = countIf(characteristics.has_failed_request),
-    Traced = countIf(isNotNull(trace.id))
-  }

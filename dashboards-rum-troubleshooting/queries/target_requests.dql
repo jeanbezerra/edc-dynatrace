@@ -1,0 +1,18 @@
+fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| filter $frontend_target != "" and frontend.name == $frontend_target and characteristics.has_request
+| fieldsAdd request_target = coalesce(url.full, url.path, "")
+| filter $request_url == "" or contains(request_target, $request_url:triplequote, false)
+| summarize
+    Calls = count(),
+    Failures = countIf(characteristics.has_failed_request),
+    Sessions = countDistinct(dt.rum.session.id),
+    Traced = countIf(isNotNull(trace.id)),
+    `p50 ms` = percentile(duration, 50) / 1ms,
+    `p95 ms` = percentile(duration, 95) / 1ms,
+    `Sample trace ID` = takeAny(if(isNotNull(trace.id), toString(trace.id))),
+    `Sample session ID` = takeAny(dt.rum.session.id),
+    by: {Domain = url.domain, Path = url.path, Method = http.request.method, Status = http.response.status_code}
+| fieldsAdd `Trace coverage %` = round(100.0 * Traced / Calls, decimals: 1)
+| fields Domain, Path, Method, Status, Calls, Failures, Sessions, Traced, `Trace coverage %`, `p50 ms`, `p95 ms`, `Sample trace ID`, `Sample session ID`
+| sort Calls desc
+| limit 100

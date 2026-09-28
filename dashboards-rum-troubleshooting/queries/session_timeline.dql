@@ -1,6 +1,5 @@
-fetch user.events
+fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
 | filter $session_id != "" and dt.rum.session.id == $session_id
-// O tipo e derivado das caracteristicas; characteristics.classifier nao representa toda a combinacao do evento.
 | fieldsAdd `Event type` = if(characteristics.is_invalid, "INVALID",
     else: if(characteristics.has_error, "ERROR",
     else: if(characteristics.has_page_summary, "PAGE_SUMMARY",
@@ -21,4 +20,4 @@ fetch user.events
     `Trace ID` = trace.id,
     `Instrumentation ID` = dt.rum.instrumentation.id
 | sort Timestamp asc
-| limit 500
+| limit 300

@@ -1,0 +1,16 @@
+fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| filter $frontend_upstream != "" and $frontend_target != ""
+| filter in(frontend.name, array($frontend_upstream, $frontend_target))
+| filter isNotNull(dt.rum.instrumentation.id)
+| summarize
+    Events = count(),
+    Sessions = countDistinct(dt.rum.session.id),
+    Frontends = collectDistinct(frontend.name),
+    `Agent types` = collectDistinct(dt.rum.agent.type),
+    `First seen` = min(start_time),
+    `Last seen` = max(start_time),
+    by: {`Instrumentation ID` = dt.rum.instrumentation.id}
+| fieldsAdd Status = if(arraySize(Frontends) > 1, "CRITICAL", else: "OK")
+| fields Status, `Instrumentation ID`, Frontends, `Agent types`, Events, Sessions, `First seen`, `Last seen`
+| sort Events desc
+| limit 100

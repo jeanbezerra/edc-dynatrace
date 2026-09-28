@@ -1,12 +1,19 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$FrontendHub,
-    [Parameter(Mandatory)][string]$FrontendApplication,
-    [string]$HubUrl = "",
-    [string]$ApplicationUrl = "",
+    [ValidateSet("15", "30", "60")]
+    [string]$AnalysisWindowMinutes = "15",
+
+    [Parameter(Mandatory)][string]$FrontendUpstream,
+    [Parameter(Mandatory)][string]$FrontendTarget,
+
+    [ValidateSet("DISABLED", "ENABLED")]
+    [string]$UpstreamRumExpected = "DISABLED",
+
+    [string]$UpstreamUrl = "",
+    [string]$TargetUrl = "",
     [string]$SessionId = "",
     [string]$RequestUrl = "",
-    [string]$ServiceName = "(All services)"
+    [string]$TraceId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,13 +23,15 @@ if (-not (Get-Command dtctl -ErrorAction SilentlyContinue)) {
 }
 
 $values = [ordered]@{
-    frontend_hub = $FrontendHub
-    frontend_application = $FrontendApplication
-    hub_url = $HubUrl
-    application_url = $ApplicationUrl
+    analysis_window_minutes = $AnalysisWindowMinutes
+    frontend_upstream = $FrontendUpstream
+    frontend_target = $FrontendTarget
+    upstream_rum_expected = $UpstreamRumExpected
+    upstream_url = $UpstreamUrl
+    target_url = $TargetUrl
     session_id = $SessionId
     request_url = $RequestUrl
-    service_name = $ServiceName
+    trace_id = $TraceId
 }
 
 function ConvertTo-DqlStringLiteral {
@@ -36,9 +45,16 @@ function Expand-DashboardVariables {
     $expanded = $Query
     foreach ($entry in $values.GetEnumerator()) {
         $literal = ConvertTo-DqlStringLiteral $entry.Value
-        foreach ($token in @("`$$($entry.Key):triplequote", "`$$($entry.Key)")) {
-            $pattern = [regex]::Escape($token)
-            $expanded = [regex]::Replace($expanded, $pattern, { param($match) $literal })
+        $replacements = @(
+            [pscustomobject]@{ Token = "`$$($entry.Key):noquote"; Value = [string]$entry.Value },
+            [pscustomobject]@{ Token = "`$$($entry.Key):triplequote"; Value = $literal },
+            [pscustomobject]@{ Token = "`$$($entry.Key)"; Value = $literal }
+        )
+
+        foreach ($replacement in $replacements) {
+            $pattern = [regex]::Escape($replacement.Token)
+            $replacementValue = $replacement.Value
+            $expanded = [regex]::Replace($expanded, $pattern, { param($match) $replacementValue })
         }
     }
     return $expanded
@@ -63,6 +79,11 @@ foreach ($variable in @($document.content.variables | Where-Object { $_.type -eq
 foreach ($tileProperty in @($document.content.tiles.psobject.Properties | Where-Object { $_.Value.type -eq "data" })) {
     Write-Host "Validating tile query: $($tileProperty.Name)"
     $expandedQuery = Expand-DashboardVariables $tileProperty.Value.query
+    if ($expandedQuery -match '\$(analysis_window_minutes|frontend_upstream|frontend_target|upstream_rum_expected|upstream_url|target_url|session_id|request_url|trace_id)(?::\w+)?') {
+        $failures.Add("tile:$($tileProperty.Name)`nUnexpanded dashboard variable remains in query.")
+        continue
+    }
+
     $output = & dtctl query $expandedQuery --plain 2>&1
     if ($LASTEXITCODE -ne 0) {
         $failures.Add("tile:$($tileProperty.Name)`n$($output -join [Environment]::NewLine)")

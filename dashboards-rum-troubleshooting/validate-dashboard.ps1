@@ -58,6 +58,7 @@ if (($tileIds -join "|") -ne ($layoutIds -join "|")) {
 
 $dataTiles = @($tileProperties | Where-Object { $_.Value.type -eq "data" })
 $markdownTiles = @($tileProperties | Where-Object { $_.Value.type -eq "markdown" })
+$timeGuardPattern = '(?i)from\s*:\s*now\(\)\s*-\s*duration\(toLong\(\$analysis_window_minutes:noquote\),\s*unit\s*:\s*"m"\)'
 
 foreach ($property in $dataTiles) {
     $tile = $property.Value
@@ -81,8 +82,29 @@ foreach ($property in $dataTiles) {
         }
     }
 
-    if ($tile.query -match '(?im)(^|[,\s])(?:from|to|timeframe)\s*:') {
-        Add-ValidationError "Tile '$($property.Name)' contains a fixed timeframe."
+    if ($tile.query -match '(?im)(^|[,\s])(?:to|timeframe)\s*:') {
+        Add-ValidationError "Tile '$($property.Name)' contains an unsupported to/timeframe override."
+    }
+
+    if ($tile.query -match '(?im)^\s*fetch\s+' -and $tile.query -notmatch $timeGuardPattern) {
+        Add-ValidationError "Tile '$($property.Name)' fetches telemetry without the bounded analysis window."
+    }
+
+    $queryWithoutApprovedGuard = [regex]::Replace($tile.query, $timeGuardPattern, "")
+    if ($queryWithoutApprovedGuard -match '(?im)(^|[,\s])from\s*:') {
+        Add-ValidationError "Tile '$($property.Name)' contains an unapproved from override."
+    }
+
+    if ($tile.querySettings.defaultScanLimitGbytes -gt 2) {
+        Add-ValidationError "Tile '$($property.Name)' has a scan limit above 2 GB."
+    }
+    if ($tile.querySettings.maxResultRecords -gt 500) {
+        Add-ValidationError "Tile '$($property.Name)' allows more than 500 result records."
+    }
+
+    if ($tile.query -match '(?im)^\s*fetch\s+spans\b' -and
+        $tile.query -notmatch 'trace\.id\s*==\s*toUid\(\$trace_id\)') {
+        Add-ValidationError "Tile '$($property.Name)' scans spans without an exact trace_id lookup."
     }
 }
 
@@ -111,7 +133,7 @@ for ($i = 0; $i -lt $layoutProperties.Count; $i++) {
     }
 }
 
-$allQueries = @($dataTiles.Value.query) + @($content.variables | Where-Object { $_.type -eq "query" } | ForEach-Object input)
+$allQueries = @($dataTiles | ForEach-Object { $_.Value.query }) + @($content.variables | Where-Object { $_.type -eq "query" } | ForEach-Object input)
 $queryText = $allQueries -join "`n"
 foreach ($variable in $content.variables) {
     if ($queryText -notmatch [regex]::Escape("$" + $variable.key)) {
@@ -125,6 +147,28 @@ foreach ($variable in $content.variables) {
             Add-ValidationError "Query variable '$($variable.key)' must finish with exactly one output field before optional sort."
         }
     }
+}
+
+$userEventScans = ([regex]::Matches($queryText, '(?im)^\s*fetch\s+user\.events\b')).Count
+$spanScans = ([regex]::Matches($queryText, '(?im)^\s*fetch\s+spans\b')).Count
+if ($userEventScans -gt 6) {
+    Add-ValidationError "Dashboard contains $userEventScans user.events scans; maximum is 6."
+}
+if ($spanScans -gt 1) {
+    Add-ValidationError "Dashboard contains $spanScans spans scans; maximum is 1."
+}
+if ($dataTiles.Count -gt 8) {
+    Add-ValidationError "Dashboard contains $($dataTiles.Count) data tiles; maximum is 8 for the cost-bounded design."
+}
+
+$analysisWindow = @($content.variables | Where-Object { $_.key -eq "analysis_window_minutes" })
+if ($analysisWindow.Count -ne 1 -or $analysisWindow[0].type -ne "csv" -or $analysisWindow[0].input -ne "15,30,60") {
+    Add-ValidationError "analysis_window_minutes must be the bounded CSV list 15,30,60."
+}
+
+$upstreamExpectation = @($content.variables | Where-Object { $_.key -eq "upstream_rum_expected" })
+if ($upstreamExpectation.Count -ne 1 -or $upstreamExpectation[0].input -ne "DISABLED,ENABLED") {
+    Add-ValidationError "upstream_rum_expected must default to the DISABLED,ENABLED CSV list."
 }
 
 $unexpectedQueryFiles = @(Get-ChildItem -LiteralPath $queriesPath -Filter "*.dql" | Where-Object { $_.BaseName -notin $dataTiles.Name })
@@ -146,5 +190,8 @@ if ($errors.Count -gt 0) {
     MarkdownTiles = $markdownTiles.Count
     Queries = @(Get-ChildItem -LiteralPath $queriesPath -Filter "*.dql").Count
     Layout = "24 columns; no overlaps"
-    FixedTimeframes = 0
+    TimeGuard = "15/30/60 minutes; hard cap 60"
+    ScanLimitPerTile = "2 GB"
+    UserEventScans = $userEventScans
+    SpanScans = $spanScans
 } | Format-List

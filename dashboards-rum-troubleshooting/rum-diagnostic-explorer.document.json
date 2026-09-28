@@ -6,25 +6,16 @@
                     "variables":  [
                                       {
                                           "version":  2,
-                                          "key":  "frontend_hub",
-                                          "type":  "query",
+                                          "key":  "analysis_window_minutes",
+                                          "type":  "csv",
                                           "visible":  true,
                                           "editable":  true,
-                                          "input":  "data record(value = \"(Select frontend)\")\n| append [\n    fetch user.events\n    | filter isNotNull(frontend.name) and frontend.name != \"\"\n    | dedup frontend.name\n    | fields value = frontend.name\n  ]\n| dedup value\n| sort value asc",
+                                          "input":  "15,30,60",
                                           "multiple":  false
                                       },
                                       {
                                           "version":  2,
-                                          "key":  "frontend_application",
-                                          "type":  "query",
-                                          "visible":  true,
-                                          "editable":  true,
-                                          "input":  "data record(value = \"(Select frontend)\")\n| append [\n    fetch user.events\n    | filter isNotNull(frontend.name) and frontend.name != \"\"\n    | dedup frontend.name\n    | fields value = frontend.name\n  ]\n| dedup value\n| sort value asc",
-                                          "multiple":  false
-                                      },
-                                      {
-                                          "version":  2,
-                                          "key":  "hub_url",
+                                          "key":  "frontend_upstream",
                                           "type":  "text",
                                           "visible":  true,
                                           "editable":  true,
@@ -32,7 +23,32 @@
                                       },
                                       {
                                           "version":  2,
-                                          "key":  "application_url",
+                                          "key":  "frontend_target",
+                                          "type":  "text",
+                                          "visible":  true,
+                                          "editable":  true,
+                                          "defaultValue":  ""
+                                      },
+                                      {
+                                          "version":  2,
+                                          "key":  "upstream_rum_expected",
+                                          "type":  "csv",
+                                          "visible":  true,
+                                          "editable":  true,
+                                          "input":  "DISABLED,ENABLED",
+                                          "multiple":  false
+                                      },
+                                      {
+                                          "version":  2,
+                                          "key":  "upstream_url",
+                                          "type":  "text",
+                                          "visible":  true,
+                                          "editable":  true,
+                                          "defaultValue":  ""
+                                      },
+                                      {
+                                          "version":  2,
+                                          "key":  "target_url",
                                           "type":  "text",
                                           "visible":  true,
                                           "editable":  true,
@@ -56,32 +72,31 @@
                                       },
                                       {
                                           "version":  2,
-                                          "key":  "service_name",
-                                          "type":  "query",
+                                          "key":  "trace_id",
+                                          "type":  "text",
                                           "visible":  true,
                                           "editable":  true,
-                                          "input":  "data record(service_name = \"(All services)\")\n| append [\n    fetch spans\n    | filter request.is_root_span == true and isNotNull(dt.service.name)\n    | dedup dt.service.name\n    | fields service_name = dt.service.name\n    | limit 200\n  ]\n| dedup service_name\n| sort service_name asc",
-                                          "multiple":  false
+                                          "defaultValue":  ""
                                       }
                                   ],
                     "tiles":  {
                                   "intro":  {
                                                 "type":  "markdown",
-                                                "content":  "# RUM Diagnostic Explorer\n\nTroubleshooting tecnico de RUM Agentless no fluxo **HUB -\u003e Apache/proxy -\u003e WAS -\u003e AngularJS -\u003e XHR/AJAX -\u003e backend**. O painel procura evidencias de mapeamento incorreto de frontend, sobreposicao de instrumentation IDs, continuidade de sessao e lacunas aparentes de correlacao frontend/backend.\n\n\u003e Comece com **15-30 minutos** e amplie para **1 hora** somente quando necessario. Todos os tiles herdam o timeframe global. Os estados `WARNING` e `CRITICAL` sao hipoteses de triagem, nao prova de causalidade."
+                                                "content":  "# RUM Agentless Pair Diagnostic\n\nCompare any two web frontends in a chained navigation: **upstream -\u003e target**. The default scenario assumes RUM was disabled on the upstream application and must remain active only on the target application.\n\n\u003e Cost guard: every telemetry query ignores a larger global timeframe and is capped by `analysis_window_minutes` at 15, 30, or 60 minutes. Default: 15 minutes."
                                             },
-                                  "scope_note":  {
-                                                     "type":  "markdown",
-                                                     "content":  "### Configuracao rapida\n\nSelecione `frontend_hub` e `frontend_application`; informe fragmentos estaveis em `hub_url` e `application_url` (dominio ou caminho, sem curingas). `session_id`, `request_url` e `service_name` sao opcionais e restringem os drill-downs. URL completa pode estar mascarada; nesse caso use um fragmento preservado ou consulte `page.name`/`view.name` nas alternativas do README."
-                                                 },
-                                  "section_01":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 01 - Status geral\n\nConfirma volume, sessoes, instrumentacao e requests antes do drill-down. Ausencia de dados pode significar timeframe inadequado, atraso de ingestao ou RUM nao observado."
-                                                 },
-                                  "status_rum_volume":  {
+                                  "configuration":  {
+                                                        "type":  "markdown",
+                                                        "content":  "### Required setup\n\nEnter exact values for `frontend_upstream` and `frontend_target`. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down."
+                                                    },
+                                  "section_status":  {
+                                                         "type":  "markdown",
+                                                         "content":  "## 01 - Agentless state and diagnostic matrix\n\nChecks whether the upstream frontend is still collecting, whether the target is collecting, where the target URL is mapped, instrumentation cardinality, request production, and trace coverage."
+                                                     },
+                                  "diagnostic_matrix":  {
                                                             "type":  "data",
-                                                            "title":  "Eventos e continuidade por frontend",
-                                                            "description":  "Volume do HUB e da aplicacao, sessoes unicas e intersecao de session IDs no periodo.",
-                                                            "query":  "fetch user.events\n| filter in(frontend.name, array($frontend_hub, $frontend_application))\n| filter isNotNull(dt.rum.session.id)\n| summarize {\n    hub_events = countIf(frontend.name == $frontend_hub),\n    application_events = countIf(frontend.name == $frontend_application)\n  }, by: {dt.rum.session.id}\n| summarize {\n    `HUB events` = sum(hub_events),\n    `Application events` = sum(application_events),\n    `HUB sessions` = countIf(hub_events \u003e 0),\n    `Application sessions` = countIf(application_events \u003e 0),\n    `Shared sessions` = countIf(hub_events \u003e 0 and application_events \u003e 0)\n  }",
+                                                            "title":  "Agentless checks - Status - Evidence",
+                                                            "description":  "One bounded user.events scan consolidates the core checks for the selected frontend pair.",
+                                                            "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $frontend_upstream != \"\" and $frontend_target != \"\"\n| filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)\n| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)\n| filter in(frontend.name, array($frontend_upstream, $frontend_target))\n    or (isNull(frontend.name) and (\n        ($upstream_url != \"\" and contains(observed_url, $upstream_url:triplequote, false))\n        or ($target_url != \"\" and contains(observed_url, $target_url:triplequote, false))))\n| summarize {\n    upstream_events = countIf(frontend.name == $frontend_upstream),\n    target_events = countIf(frontend.name == $frontend_target),\n    unknown_url_events = countIf(isNull(frontend.name)),\n    upstream_last_seen = max(if(frontend.name == $frontend_upstream, start_time)),\n    target_last_seen = max(if(frontend.name == $frontend_target, start_time)),\n    upstream_id_count = countDistinctExact(if(frontend.name == $frontend_upstream, dt.rum.instrumentation.id)),\n    target_id_count = countDistinctExact(if(frontend.name == $frontend_target, dt.rum.instrumentation.id)),\n    target_url_events = countIf($target_url != \"\" and contains(observed_url, $target_url:triplequote, false)),\n    target_url_in_upstream = countIf($target_url != \"\" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_upstream),\n    target_url_in_target = countIf($target_url != \"\" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_target),\n    target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request),\n    traced_target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request and isNotNull(trace.id))\n  }\n| fieldsAdd\n    target_mapping_pct = if(target_url_events \u003e 0, 100.0 * target_url_in_target / target_url_events),\n    trace_coverage_pct = if(target_requests \u003e 0, 100.0 * traced_target_requests / target_requests)\n| fieldsAdd checks = array(\n    record(\n        Check = \"Upstream RUM state\",\n        Status = if($upstream_rum_expected == \"DISABLED\",\n            if(upstream_events == 0, \"OK\", else: \"CRITICAL\"),\n            else: if(upstream_events \u003e 0, \"OK\", else: \"WARNING\")),\n        Evidence = concat(\"expected=\", $upstream_rum_expected, \"; events=\", toString(upstream_events), \"; last=\", coalesce(toString(upstream_last_seen), \"none\"))),\n    record(\n        Check = \"Target RUM detected\",\n        Status = if(target_events \u003e 0, \"OK\", else: \"CRITICAL\"),\n        Evidence = concat(toString(target_events), \" events; last=\", coalesce(toString(target_last_seen), \"none\"))),\n    record(\n        Check = \"Target URL assigned to target frontend\",\n        Status = if($target_url == \"\", \"NOT_CONFIGURED\",\n            else: if(target_url_events == 0, \"WARNING\",\n            else: if(target_url_in_upstream \u003e 0, \"CRITICAL\",\n            else: if(target_url_in_target \u003e 0, \"OK\", else: \"WARNING\")))),\n        Evidence = concat(toString(target_url_in_target), \"/\", toString(target_url_events), \" target URL events in target; \", toString(target_url_in_upstream), \" in upstream\")),\n    record(\n        Check = \"Upstream instrumentation IDs\",\n        Status = if($upstream_rum_expected == \"DISABLED\" and upstream_id_count == 0, \"OK\",\n            else: if(upstream_id_count \u003c= 1, \"OK\", else: \"WARNING\")),\n        Evidence = concat(toString(upstream_id_count), \" IDs\")),\n    record(\n        Check = \"Target instrumentation IDs\",\n        Status = if(target_id_count == 1, \"OK\", else: if(target_id_count == 0, \"CRITICAL\", else: \"WARNING\")),\n        Evidence = concat(toString(target_id_count), \" IDs\")),\n    record(\n        Check = \"Target requests detected\",\n        Status = if(target_requests \u003e 0, \"OK\", else: \"WARNING\"),\n        Evidence = concat(toString(target_requests), \" requests\")),\n    record(\n        Check = \"Frontend trace context coverage\",\n        Status = if(target_requests == 0, \"NO_DATA\",\n            else: if(trace_coverage_pct \u003e= 80, \"OK\",\n            else: if(trace_coverage_pct \u003e= 50, \"WARNING\", else: \"CRITICAL\"))),\n        Evidence = concat(toString(traced_target_requests), \"/\", toString(target_requests), \" requests with trace.id\")),\n    record(\n        Check = \"Configured URLs without frontend\",\n        Status = if(unknown_url_events == 0, \"OK\", else: \"WARNING\"),\n        Evidence = concat(toString(unknown_url_events), \" URL-matched events without frontend\"))\n  )\n| fields checks\n| expand checks\n| fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]",
                                                             "visualization":  "table",
                                                             "visualizationSettings":  {
                                                                                           "autoSelectVisualization":  false,
@@ -93,456 +108,22 @@
                                                                                                     }
                                                                                       },
                                                             "querySettings":  {
-                                                                                  "maxResultRecords":  1000,
-                                                                                  "defaultScanLimitGbytes":  100,
-                                                                                  "maxResultMegaBytes":  20,
+                                                                                  "maxResultRecords":  500,
+                                                                                  "defaultScanLimitGbytes":  2,
+                                                                                  "maxResultMegaBytes":  5,
                                                                                   "defaultSamplingRatio":  1,
                                                                                   "enableSampling":  false
                                                                               }
                                                         },
-                                  "status_instrumentation":  {
-                                                                 "type":  "data",
-                                                                 "title":  "Instrumentation IDs e frontend desconhecido",
-                                                                 "description":  "Conta IDs distintos por frontend e eventos sem frontend identificado.",
-                                                                 "query":  "fetch user.events\n| summarize {\n    `HUB instrumentation IDs` = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),\n    `Application instrumentation IDs` = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),\n    `Events without frontend` = countIf(isNull(frontend.name) or frontend.name == \"\")\n  }",
-                                                                 "visualization":  "table",
-                                                                 "visualizationSettings":  {
-                                                                                               "autoSelectVisualization":  false,
-                                                                                               "table":  {
-                                                                                                             "rowDensity":  "condensed",
-                                                                                                             "columnWidthStrategy":  "content",
-                                                                                                             "enableSparklines":  false,
-                                                                                                             "linewrapEnabled":  true
-                                                                                                         }
-                                                                                           },
-                                                                 "querySettings":  {
-                                                                                       "maxResultRecords":  1000,
-                                                                                       "defaultScanLimitGbytes":  100,
-                                                                                       "maxResultMegaBytes":  20,
-                                                                                       "defaultSamplingRatio":  1,
-                                                                                       "enableSampling":  false
-                                                                                   }
-                                                             },
-                                  "status_requests":  {
-                                                          "type":  "data",
-                                                          "title":  "Requests RUM da aplicacao",
-                                                          "description":  "Requests, falhas, endpoints e sessoes afetadas do frontend AngularJS selecionado.",
-                                                          "query":  "fetch user.events\n| summarize {\n    `Frontend requests` = countIf(frontend.name == $frontend_application and characteristics.has_request),\n    `Failed requests` = countIf(frontend.name == $frontend_application and characteristics.has_failed_request),\n    `Distinct request URLs` = countDistinct(if(frontend.name == $frontend_application and characteristics.has_request, url.full)),\n    `Request sessions` = countDistinct(if(frontend.name == $frontend_application and characteristics.has_request, dt.rum.session.id))\n  }",
-                                                          "visualization":  "table",
-                                                          "visualizationSettings":  {
-                                                                                        "autoSelectVisualization":  false,
-                                                                                        "table":  {
-                                                                                                      "rowDensity":  "condensed",
-                                                                                                      "columnWidthStrategy":  "content",
-                                                                                                      "enableSparklines":  false,
-                                                                                                      "linewrapEnabled":  true
-                                                                                                  }
-                                                                                    },
-                                                          "querySettings":  {
-                                                                                "maxResultRecords":  1000,
-                                                                                "defaultScanLimitGbytes":  100,
-                                                                                "maxResultMegaBytes":  20,
-                                                                                "defaultSamplingRatio":  1,
-                                                                                "enableSampling":  false
-                                                                            }
+                                  "section_mapping":  {
+                                                          "type":  "markdown",
+                                                          "content":  "## 02 - Instrumentation overlap and URL ownership\n\nThe same instrumentation ID across both frontends or target URLs recorded under the upstream frontend strongly suggests overlapping injection, stale configuration, or detection-rule precedence."
                                                       },
-                                  "section_02":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 02 - Frontend x instrumentation ID\n\nMais de um ID no mesmo frontend ou um ID compartilhado entre HUB e AngularJS e evidencia para revisar regras de deteccao e metodo de injecao."
-                                                 },
-                                  "frontend_instrumentation":  {
-                                                                   "type":  "data",
-                                                                   "title":  "Frontend x instrumentation ID x agent",
-                                                                   "description":  "Inventario de combinacoes observadas, incluindo eventos sem frontend ou sem instrumentation ID.",
-                                                                   "query":  "fetch user.events\n| filter in(frontend.name, array($frontend_hub, $frontend_application)) or isNull(frontend.name)\n| fieldsAdd\n    Frontend = coalesce(frontend.name, \"UNKNOWN_FRONTEND\"),\n    `Instrumentation ID` = coalesce(dt.rum.instrumentation.id, \"NOT_OBSERVED\"),\n    `Agent type` = coalesce(dt.rum.agent.type, \"NOT_OBSERVED\")\n| summarize Events = count(), Sessions = countDistinct(dt.rum.session.id), by: {Frontend, `Instrumentation ID`, `Agent type`}\n| sort Events desc\n| limit 100",
-                                                                   "visualization":  "table",
-                                                                   "visualizationSettings":  {
-                                                                                                 "autoSelectVisualization":  false,
-                                                                                                 "table":  {
-                                                                                                               "rowDensity":  "condensed",
-                                                                                                               "columnWidthStrategy":  "content",
-                                                                                                               "enableSparklines":  false,
-                                                                                                               "linewrapEnabled":  true
-                                                                                                           }
-                                                                                             },
-                                                                   "querySettings":  {
-                                                                                         "maxResultRecords":  1000,
-                                                                                         "defaultScanLimitGbytes":  100,
-                                                                                         "maxResultMegaBytes":  20,
-                                                                                         "defaultSamplingRatio":  1,
-                                                                                         "enableSampling":  false
-                                                                                     }
-                                                               },
-                                  "shared_instrumentation":  {
-                                                                 "type":  "data",
-                                                                 "title":  "IDs compartilhados entre frontends",
-                                                                 "description":  "Mostra somente instrumentation IDs observados em mais de um frontend selecionado.",
-                                                                 "query":  "fetch user.events\n| filter in(frontend.name, array($frontend_hub, $frontend_application))\n| filter isNotNull(dt.rum.instrumentation.id)\n| summarize\n    Frontends = collectDistinct(frontend.name),\n    Events = count(),\n    Sessions = countDistinct(dt.rum.session.id),\n    by: {`Instrumentation ID` = dt.rum.instrumentation.id}\n| fieldsAdd `Frontend count` = arraySize(Frontends), Status = if(arraySize(Frontends) \u003e 1, \"WARNING\", else: \"OK\")\n| filter `Frontend count` \u003e 1\n| fields `Instrumentation ID`, Frontends = toString(Frontends), Events, Sessions, Status\n| sort Events desc\n| limit 50",
-                                                                 "visualization":  "table",
-                                                                 "visualizationSettings":  {
-                                                                                               "autoSelectVisualization":  false,
-                                                                                               "table":  {
-                                                                                                             "rowDensity":  "condensed",
-                                                                                                             "columnWidthStrategy":  "content",
-                                                                                                             "enableSparklines":  false,
-                                                                                                             "linewrapEnabled":  true
-                                                                                                         }
-                                                                                           },
-                                                                 "querySettings":  {
-                                                                                       "maxResultRecords":  1000,
-                                                                                       "defaultScanLimitGbytes":  100,
-                                                                                       "maxResultMegaBytes":  20,
-                                                                                       "defaultSamplingRatio":  1,
-                                                                                       "enableSampling":  false
-                                                                                   }
-                                                             },
-                                  "section_03":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 03 - URL -\u003e frontend e navegacao\n\nA URL AngularJS atribuida ao HUB e um forte indicador de mapeamento inesperado. Redirecionamentos e navegacoes sao exibidos como evidencia; nao provam sozinhos erro de sessao."
-                                                 },
-                                  "url_frontend_detail":  {
-                                                              "type":  "data",
-                                                              "title":  "URL -\u003e frontend -\u003e instrumentation ID",
-                                                              "description":  "Descobre qual frontend recebeu eventos das URLs configuradas e evidencia a mesma URL em frontends diferentes.",
-                                                              "query":  "fetch user.events\n| fieldsAdd `Observed URL` = coalesce(page.url.full, view.url.full, url.full)\n| filter isNotNull(`Observed URL`)\n| filter\n    ($hub_url != \"\" and contains(`Observed URL`, $hub_url:triplequote, false)) or\n    ($application_url != \"\" and contains(`Observed URL`, $application_url:triplequote, false))\n| summarize\n    Events = count(),\n    Sessions = countDistinct(dt.rum.session.id),\n    by: {`Observed URL`, Frontend = frontend.name, `Instrumentation ID` = dt.rum.instrumentation.id}\n| sort Events desc\n| limit 100",
-                                                              "visualization":  "table",
-                                                              "visualizationSettings":  {
-                                                                                            "autoSelectVisualization":  false,
-                                                                                            "table":  {
-                                                                                                          "rowDensity":  "condensed",
-                                                                                                          "columnWidthStrategy":  "content",
-                                                                                                          "enableSparklines":  false,
-                                                                                                          "linewrapEnabled":  true
-                                                                                                      }
-                                                                                        },
-                                                              "querySettings":  {
-                                                                                    "maxResultRecords":  1000,
-                                                                                    "defaultScanLimitGbytes":  100,
-                                                                                    "maxResultMegaBytes":  20,
-                                                                                    "defaultSamplingRatio":  1,
-                                                                                    "enableSampling":  false
-                                                                                }
-                                                          },
-                                  "url_mapping_status":  {
-                                                             "type":  "data",
-                                                             "title":  "Mapeamento esperado x observado",
-                                                             "description":  "CRITICAL indica URL do HUB/aplicacao recebida por um frontend diferente do configurado.",
-                                                             "query":  "fetch user.events\n| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)\n| filter isNotNull(observed_url)\n| filter\n    ($hub_url != \"\" and contains(observed_url, $hub_url:triplequote, false)) or\n    ($application_url != \"\" and contains(observed_url, $application_url:triplequote, false))\n| fieldsAdd `URL scope` = if(\n    $application_url != \"\" and contains(observed_url, $application_url:triplequote, false), \"APPLICATION_URL\",\n    else: \"HUB_URL\")\n| fieldsAdd `Expected frontend` = if(`URL scope` == \"APPLICATION_URL\", $frontend_application, else: $frontend_hub)\n| summarize Events = count(), Sessions = countDistinct(dt.rum.session.id), by: {`URL scope`, `Expected frontend`, `Observed frontend` = frontend.name}\n| fieldsAdd\n    Status = if(`Observed frontend` == `Expected frontend`, \"OK\", else: \"CRITICAL\"),\n    Severity = if(`Observed frontend` == `Expected frontend`, 0, else: 2)\n| sort Severity desc, Events desc\n| fieldsRemove Severity",
-                                                             "visualization":  "table",
-                                                             "visualizationSettings":  {
-                                                                                           "autoSelectVisualization":  false,
-                                                                                           "table":  {
-                                                                                                         "rowDensity":  "condensed",
-                                                                                                         "columnWidthStrategy":  "content",
-                                                                                                         "enableSparklines":  false,
-                                                                                                         "linewrapEnabled":  true
-                                                                                                     }
-                                                                                       },
-                                                             "querySettings":  {
-                                                                                   "maxResultRecords":  1000,
-                                                                                   "defaultScanLimitGbytes":  100,
-                                                                                   "maxResultMegaBytes":  20,
-                                                                                   "defaultSamplingRatio":  1,
-                                                                                   "enableSampling":  false
-                                                                               }
-                                                         },
-                                  "navigation_redirects":  {
-                                                               "type":  "data",
-                                                               "title":  "Navegacoes e redirecionamentos observados",
-                                                               "description":  "Compara hard/soft navigation, origem e destino entre HUB e AngularJS.",
-                                                               "query":  "fetch user.events\n| filter characteristics.has_navigation\n| filter in(frontend.name, array($frontend_hub, $frontend_application))\n| fieldsAdd\n    Source = coalesce(page.source.url.full, view.source.url.full, view.source.name, \"NOT_OBSERVED\"),\n    Destination = coalesce(page.url.full, view.url.full, page.name, view.name, \"NOT_OBSERVED\")\n| filter\n    ($hub_url == \"\" and $application_url == \"\") or\n    ($hub_url != \"\" and (contains(Source, $hub_url:triplequote, false) or contains(Destination, $hub_url:triplequote, false))) or\n    ($application_url != \"\" and (contains(Source, $application_url:triplequote, false) or contains(Destination, $application_url:triplequote, false)))\n| summarize Events = count(), Sessions = countDistinct(dt.rum.session.id), by: {Frontend = frontend.name, `Navigation type` = navigation.type, `Performance type` = performance.type, Source, Destination}\n| sort Events desc\n| limit 50",
-                                                               "visualization":  "table",
-                                                               "visualizationSettings":  {
-                                                                                             "autoSelectVisualization":  false,
-                                                                                             "table":  {
-                                                                                                           "rowDensity":  "condensed",
-                                                                                                           "columnWidthStrategy":  "content",
-                                                                                                           "enableSparklines":  false,
-                                                                                                           "linewrapEnabled":  true
-                                                                                                       }
-                                                                                         },
-                                                               "querySettings":  {
-                                                                                     "maxResultRecords":  1000,
-                                                                                     "defaultScanLimitGbytes":  100,
-                                                                                     "maxResultMegaBytes":  20,
-                                                                                     "defaultSamplingRatio":  1,
-                                                                                     "enableSampling":  false
-                                                                                 }
-                                                           },
-                                  "section_04":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 04 - Sessoes que atravessam HUB e AngularJS\n\n`CONTINUOUS` significa que o mesmo session ID foi observado nos dois frontends. `HUB_ONLY` e `APP_ONLY` sao indicadores para investigacao, nao uma classificacao automatica de sessao quebrada."
-                                                 },
-                                  "session_continuity":  {
-                                                             "type":  "data",
-                                                             "title":  "Continuidade por session ID",
-                                                             "description":  "Reconstroi o escopo de cada sessao e classifica a presenca nos frontends selecionados.",
-                                                             "query":  "fetch user.events\n| filter isNotNull(dt.rum.session.id)\n| summarize {\n    Frontends = arrayRemoveNulls(collectDistinct(frontend.name)),\n    `First event` = min(start_time),\n    `Last event` = max(start_time),\n    Events = count(),\n    hub_events = countIf(frontend.name == $frontend_hub),\n    application_events = countIf(frontend.name == $frontend_application)\n  }, by: {`Session ID` = dt.rum.session.id}\n| filter hub_events \u003e 0 or application_events \u003e 0\n| fieldsAdd\n    Classification = if(hub_events \u003e 0 and application_events \u003e 0 and arraySize(Frontends) \u003e 2, \"MULTI_FRONTEND\",\n      else: if(hub_events \u003e 0 and application_events \u003e 0, \"CONTINUOUS\",\n      else: if(hub_events \u003e 0, \"HUB_ONLY\", else: \"APP_ONLY\"))),\n    `Approx. duration` = `Last event` - `First event`\n| fields `Session ID`, `Frontends found` = toString(Frontends), Classification, `First event`, `Last event`, Events, `Approx. duration`\n| sort `Last event` desc\n| limit 100",
-                                                             "visualization":  "table",
-                                                             "visualizationSettings":  {
-                                                                                           "autoSelectVisualization":  false,
-                                                                                           "table":  {
-                                                                                                         "rowDensity":  "condensed",
-                                                                                                         "columnWidthStrategy":  "content",
-                                                                                                         "enableSparklines":  false,
-                                                                                                         "linewrapEnabled":  true
-                                                                                                     }
-                                                                                       },
-                                                             "querySettings":  {
-                                                                                   "maxResultRecords":  1000,
-                                                                                   "defaultScanLimitGbytes":  100,
-                                                                                   "maxResultMegaBytes":  20,
-                                                                                   "defaultSamplingRatio":  1,
-                                                                                   "enableSampling":  false
-                                                                               }
-                                                         },
-                                  "session_classification":  {
-                                                                 "type":  "data",
-                                                                 "title":  "Distribuicao das sessoes",
-                                                                 "description":  "Distribuicao das classificacoes sem inferir causa.",
-                                                                 "query":  "fetch user.events\n| filter isNotNull(dt.rum.session.id)\n| summarize {\n    frontends = arrayRemoveNulls(collectDistinct(frontend.name)),\n    hub_events = countIf(frontend.name == $frontend_hub),\n    application_events = countIf(frontend.name == $frontend_application)\n  }, by: {dt.rum.session.id}\n| filter hub_events \u003e 0 or application_events \u003e 0\n| fieldsAdd Classification = if(hub_events \u003e 0 and application_events \u003e 0 and arraySize(frontends) \u003e 2, \"MULTI_FRONTEND\",\n    else: if(hub_events \u003e 0 and application_events \u003e 0, \"CONTINUOUS\",\n    else: if(hub_events \u003e 0, \"HUB_ONLY\", else: \"APP_ONLY\")))\n| summarize Sessions = count(), by: {Classification}\n| sort Sessions desc",
-                                                                 "visualization":  "categoricalBarChart",
-                                                                 "visualizationSettings":  {
-                                                                                               "autoSelectVisualization":  false
-                                                                                           },
-                                                                 "querySettings":  {
-                                                                                       "maxResultRecords":  1000,
-                                                                                       "defaultScanLimitGbytes":  100,
-                                                                                       "maxResultMegaBytes":  20,
-                                                                                       "defaultSamplingRatio":  1,
-                                                                                       "enableSampling":  false
-                                                                                   }
-                                                             },
-                                  "section_05":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 05 - Timeline de uma sessao\n\nPreencha `session_id`. A ordem cronologica mostra frontend, URL, navegacao, acao, request e instrumentacao. Uma nova session ID apos a troca de aplicacao exige contexto adicional antes de ser tratada como falha."
-                                                 },
-                                  "session_timeline":  {
-                                                           "type":  "data",
-                                                           "title":  "Timeline tecnica da sessao",
-                                                           "description":  "Eventos em ordem cronologica para reconstruir HUB -\u003e navegacao -\u003e AngularJS -\u003e XHR -\u003e backend.",
-                                                           "query":  "fetch user.events\n| filter $session_id != \"\" and dt.rum.session.id == $session_id\n// O tipo e derivado das caracteristicas; characteristics.classifier nao representa toda a combinacao do evento.\n| fieldsAdd `Event type` = if(characteristics.is_invalid, \"INVALID\",\n    else: if(characteristics.has_error, \"ERROR\",\n    else: if(characteristics.has_page_summary, \"PAGE_SUMMARY\",\n    else: if(characteristics.has_view_summary, \"VIEW_SUMMARY\",\n    else: if(characteristics.has_user_action, \"USER_ACTION\",\n    else: if(characteristics.has_navigation, \"NAVIGATION\",\n    else: if(characteristics.has_user_interaction, \"USER_INTERACTION\",\n    else: if(characteristics.has_request, \"REQUEST\", else: \"OTHER\"))))))))\n| fields\n    Timestamp = start_time,\n    Frontend = frontend.name,\n    `Page/View URL` = coalesce(page.url.full, view.url.full),\n    `Event type`,\n    `User action` = coalesce(user_action.custom_name, user_action.type, interaction.type),\n    `Request URL` = url.full,\n    `Request method` = http.request.method,\n    `Status code` = http.response.status_code,\n    `Trace ID` = trace.id,\n    `Instrumentation ID` = dt.rum.instrumentation.id\n| sort Timestamp asc\n| limit 500",
-                                                           "visualization":  "table",
-                                                           "visualizationSettings":  {
-                                                                                         "autoSelectVisualization":  false,
-                                                                                         "table":  {
-                                                                                                       "rowDensity":  "condensed",
-                                                                                                       "columnWidthStrategy":  "content",
-                                                                                                       "enableSparklines":  false,
-                                                                                                       "linewrapEnabled":  true
-                                                                                                   }
-                                                                                     },
-                                                           "querySettings":  {
-                                                                                 "maxResultRecords":  1000,
-                                                                                 "defaultScanLimitGbytes":  100,
-                                                                                 "maxResultMegaBytes":  20,
-                                                                                 "defaultSamplingRatio":  1,
-                                                                                 "enableSampling":  false
-                                                                             }
-                                                       },
-                                  "section_06":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 06 - Requests do frontend\n\nMostra o que o AngularJS efetivamente chamou. Use `request_url` para restringir dominio, caminho ou endpoint; vazio mantem todas as requests do frontend selecionado."
-                                                 },
-                                  "frontend_requests":  {
-                                                            "type":  "data",
-                                                            "title":  "Requests observadas no AngularJS",
-                                                            "description":  "URL, metodo, status, volume, falhas, sessoes e vinculo de user action quando disponivel.",
-                                                            "query":  "fetch user.events\n| filter characteristics.has_request\n| filter frontend.name == $frontend_application\n| filter $request_url == \"\" or contains(url.full, $request_url:triplequote, false)\n| fieldsAdd `User action` = coalesce(user_action.custom_name, user_action.type, toString(user_action.instance_id), \"NOT_OBSERVED\")\n| summarize\n    Calls = count(),\n    Errors = countIf(characteristics.has_failed_request or http.response.status_code \u003e= 400),\n    Sessions = countDistinct(dt.rum.session.id),\n    by: {Frontend = frontend.name, `Request URL` = url.full, `HTTP method` = http.request.method, `HTTP status` = http.response.status_code, `User action`}\n| sort Calls desc\n| limit 100",
-                                                            "visualization":  "table",
-                                                            "visualizationSettings":  {
-                                                                                          "autoSelectVisualization":  false,
-                                                                                          "table":  {
-                                                                                                        "rowDensity":  "condensed",
-                                                                                                        "columnWidthStrategy":  "content",
-                                                                                                        "enableSparklines":  false,
-                                                                                                        "linewrapEnabled":  true
-                                                                                                    }
-                                                                                      },
-                                                            "querySettings":  {
-                                                                                  "maxResultRecords":  1000,
-                                                                                  "defaultScanLimitGbytes":  100,
-                                                                                  "maxResultMegaBytes":  20,
-                                                                                  "defaultSamplingRatio":  1,
-                                                                                  "enableSampling":  false
-                                                                              }
-                                                        },
-                                  "request_trend":  {
-                                                        "type":  "data",
-                                                        "title":  "Requests, falhas e requests com trace",
-                                                        "description":  "Tendencia de volumes no timeframe global; a distancia entre Requests e Traced indica onde medir cobertura.",
-                                                        "query":  "fetch user.events\n| filter characteristics.has_request\n| filter frontend.name == $frontend_application\n| filter $request_url == \"\" or contains(url.full, $request_url:triplequote, false)\n| makeTimeseries {\n    Requests = count(),\n    Errors = countIf(characteristics.has_failed_request),\n    Traced = countIf(isNotNull(trace.id))\n  }",
-                                                        "visualization":  "lineChart",
-                                                        "visualizationSettings":  {
-                                                                                      "autoSelectVisualization":  false
-                                                                                  },
-                                                        "querySettings":  {
-                                                                              "maxResultRecords":  1000,
-                                                                              "defaultScanLimitGbytes":  100,
-                                                                              "maxResultMegaBytes":  20,
-                                                                              "defaultSamplingRatio":  1,
-                                                                              "enableSampling":  false
-                                                                          }
-                                                    },
-                                  "section_07":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 07 - Requests com erro ou lentidao\n\n`NO_STATUS_OBSERVED` significa apenas que nenhum status HTTP foi capturado. Nao equivale automaticamente a timeout, cancelamento ou ausencia de resposta. O painel nao inventa um campo de cancelamento inexistente no modelo semantico atual."
-                                                 },
-                                  "request_errors":  {
-                                                         "type":  "data",
-                                                         "title":  "4xx, 5xx e status nao observado",
-                                                         "description":  "Agrupa requests com falha, status HTTP de erro ou ausencia de status; inclui p50 e p95.",
-                                                         "query":  "fetch user.events\n| filter characteristics.has_request\n| filter frontend.name == $frontend_application\n| filter $request_url == \"\" or contains(url.full, $request_url:triplequote, false)\n| filter characteristics.has_failed_request or http.response.status_code \u003e= 400 or isNull(http.response.status_code)\n| fieldsAdd `Status class` = if(http.response.status_code \u003e= 500, \"HTTP_5XX\",\n    else: if(http.response.status_code \u003e= 400, \"HTTP_4XX\",\n    else: if(isNull(http.response.status_code), \"NO_STATUS_OBSERVED\", else: \"OTHER\")))\n| summarize\n    Calls = count(),\n    Errors = countIf(characteristics.has_failed_request or http.response.status_code \u003e= 400),\n    Sessions = countDistinct(dt.rum.session.id),\n    `p50 ms` = percentile(duration, 50) / 1ms,\n    `p95 ms` = percentile(duration, 95) / 1ms,\n    by: {Request = url.full, Status = http.response.status_code, `Status class`, Frontend = frontend.name}\n| sort Errors desc, Calls desc\n| limit 100",
-                                                         "visualization":  "table",
-                                                         "visualizationSettings":  {
-                                                                                       "autoSelectVisualization":  false,
-                                                                                       "table":  {
-                                                                                                     "rowDensity":  "condensed",
-                                                                                                     "columnWidthStrategy":  "content",
-                                                                                                     "enableSparklines":  false,
-                                                                                                     "linewrapEnabled":  true
-                                                                                                 }
-                                                                                   },
-                                                         "querySettings":  {
-                                                                               "maxResultRecords":  1000,
-                                                                               "defaultScanLimitGbytes":  100,
-                                                                               "maxResultMegaBytes":  20,
-                                                                               "defaultSamplingRatio":  1,
-                                                                               "enableSampling":  false
-                                                                           }
-                                                     },
-                                  "slow_requests":  {
-                                                        "type":  "data",
-                                                        "title":  "Requests lentas",
-                                                        "description":  "Threshold operacional inicial de 2 s; ajuste a interpretacao ao SLA real da aplicacao.",
-                                                        "query":  "fetch user.events\n| filter characteristics.has_request\n| filter frontend.name == $frontend_application\n| filter $request_url == \"\" or contains(url.full, $request_url:triplequote, false)\n| filter duration \u003e 2s\n| summarize\n    Calls = count(),\n    Sessions = countDistinct(dt.rum.session.id),\n    `p50 ms` = percentile(duration, 50) / 1ms,\n    `p95 ms` = percentile(duration, 95) / 1ms,\n    `Max ms` = max(duration) / 1ms,\n    by: {Request = url.full, `HTTP method` = http.request.method, `HTTP status` = http.response.status_code}\n| sort `p95 ms` desc\n| limit 100",
-                                                        "visualization":  "table",
-                                                        "visualizationSettings":  {
-                                                                                      "autoSelectVisualization":  false,
-                                                                                      "table":  {
-                                                                                                    "rowDensity":  "condensed",
-                                                                                                    "columnWidthStrategy":  "content",
-                                                                                                    "enableSparklines":  false,
-                                                                                                    "linewrapEnabled":  true
-                                                                                                }
-                                                                                  },
-                                                        "querySettings":  {
-                                                                              "maxResultRecords":  1000,
-                                                                              "defaultScanLimitGbytes":  100,
-                                                                              "maxResultMegaBytes":  20,
-                                                                              "defaultSamplingRatio":  1,
-                                                                              "enableSampling":  false
-                                                                          }
-                                                    },
-                                  "section_08":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 08 - Correlacao frontend -\u003e backend\n\n`trace.id` no evento RUM prova que contexto de trace foi observado no frontend; spans com link RUM mostram o lado backend. Ausencia em qualquer lado deve ser descrita como **Correlation not observed**, nunca como causa definitiva."
-                                                 },
-                                  "trace_coverage":  {
-                                                         "type":  "data",
-                                                         "title":  "Cobertura de trace por request RUM",
-                                                         "description":  "Percentual de requests com trace.id e hints de propagacao/Server-Timing.",
-                                                         "query":  "fetch user.events\n| filter characteristics.has_request\n| filter frontend.name == $frontend_application\n| filter $request_url == \"\" or contains(url.full, $request_url:triplequote, false)\n| summarize\n    Requests = count(),\n    `Trace ID observed` = countIf(isNotNull(trace.id)),\n    `Sampled trace` = countIf(trace.is_sampled == true),\n    by: {Request = url.full, `Trace context hint` = request.trace_context_hint, `Server timing hint` = request.server_timing_hint}\n| fieldsAdd `Coverage %` = round(100.0 * `Trace ID observed` / Requests, decimals: 1)\n| fieldsAdd Status = if(`Coverage %` \u003e= 80, \"OK\", else: if(`Coverage %` \u003e= 50, \"WARNING\", else: \"CRITICAL\"))\n| sort Requests desc\n| limit 50",
-                                                         "visualization":  "table",
-                                                         "visualizationSettings":  {
-                                                                                       "autoSelectVisualization":  false,
-                                                                                       "table":  {
-                                                                                                     "rowDensity":  "condensed",
-                                                                                                     "columnWidthStrategy":  "content",
-                                                                                                     "enableSparklines":  false,
-                                                                                                     "linewrapEnabled":  true
-                                                                                                 }
-                                                                                   },
-                                                         "querySettings":  {
-                                                                               "maxResultRecords":  1000,
-                                                                               "defaultScanLimitGbytes":  100,
-                                                                               "maxResultMegaBytes":  20,
-                                                                               "defaultSamplingRatio":  1,
-                                                                               "enableSampling":  false
-                                                                           }
-                                                     },
-                                  "backend_endpoints":  {
-                                                            "type":  "data",
-                                                            "title":  "Backend observado para o filtro",
-                                                            "description":  "Root spans compativeis com request_url/service_name. Nao e um join amplo com RUM; use trace ID da timeline para confirmacao pontual.",
-                                                            "query":  "fetch spans\n| filter request.is_root_span == true\n| filter in($service_name, array(\"\", \"(All services)\")) or dt.service.name == $service_name\n| fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, \"\")\n| filter $request_url == \"\" or contains(request_target, $request_url:triplequote, false)\n// Multiplicidade corrige ATM/ALR, agregacao de spans e read sampling.\n| fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)\n| fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio\n| summarize\n    Requests = sum(multiplicity),\n    Failures = sum(if(request.is_failed == true, multiplicity, else: 0)),\n    `p50 ms` = percentile(duration, 50) / 1ms,\n    `p95 ms` = percentile(duration, 95) / 1ms,\n    `RUM-linked spans` = countIf(isNotNull(dt.rum.session.id) or dt.rum.is_linking_candidate == true),\n    by: {Service = dt.service.name, Endpoint = endpoint.name, Route = http.route}\n| sort Requests desc\n| limit 50",
-                                                            "visualization":  "table",
-                                                            "visualizationSettings":  {
-                                                                                          "autoSelectVisualization":  false,
-                                                                                          "table":  {
-                                                                                                        "rowDensity":  "condensed",
-                                                                                                        "columnWidthStrategy":  "content",
-                                                                                                        "enableSparklines":  false,
-                                                                                                        "linewrapEnabled":  true
-                                                                                                    }
-                                                                                      },
-                                                            "querySettings":  {
-                                                                                  "maxResultRecords":  1000,
-                                                                                  "defaultScanLimitGbytes":  100,
-                                                                                  "maxResultMegaBytes":  20,
-                                                                                  "defaultSamplingRatio":  1,
-                                                                                  "enableSampling":  false
-                                                                              }
-                                                        },
-                                  "observed_dependencies":  {
-                                                                "type":  "data",
-                                                                "title":  "Service -\u003e downstream observado",
-                                                                "description":  "Chamadas HTTP client vistas em spans para localizar onde a cadeia continua apos WAS/backend.",
-                                                                "query":  "fetch spans\n| filter span.kind == \"client\" and isNotNull(http.request.method)\n| filter in($service_name, array(\"\", \"(All services)\")) or dt.service.name == $service_name\n| fieldsAdd downstream = coalesce(server.address, url.domain, endpoint.name, \"NOT_OBSERVED\")\n| filter $request_url == \"\" or contains(coalesce(url.full, url.path, endpoint.name, downstream), $request_url:triplequote, false)\n// Multiplicidade corrige contagens; percentis continuam descrevendo spans observados.\n| fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)\n| fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio\n| summarize\n    Calls = sum(multiplicity),\n    Failures = sum(if(request.is_failed == true or http.response.status_code \u003e= 400, multiplicity, else: 0)),\n    `p95 ms` = percentile(duration, 95) / 1ms,\n    by: {Caller = dt.service.name, Downstream = downstream, Method = http.request.method}\n| sort Calls desc\n| limit 50",
-                                                                "visualization":  "table",
-                                                                "visualizationSettings":  {
-                                                                                              "autoSelectVisualization":  false,
-                                                                                              "table":  {
-                                                                                                            "rowDensity":  "condensed",
-                                                                                                            "columnWidthStrategy":  "content",
-                                                                                                            "enableSparklines":  false,
-                                                                                                            "linewrapEnabled":  true
-                                                                                                        }
-                                                                                          },
-                                                                "querySettings":  {
-                                                                                      "maxResultRecords":  1000,
-                                                                                      "defaultScanLimitGbytes":  100,
-                                                                                      "maxResultMegaBytes":  20,
-                                                                                      "defaultSamplingRatio":  1,
-                                                                                      "enableSampling":  false
-                                                                                  }
-                                                            },
-                                  "section_09":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 09 - Backend services\n\nRED e cauda de latencia por servico. Contagens de spans sao extrapoladas por sampling/aggregation; percentis descrevem a distribuicao observada."
-                                                 },
-                                  "backend_services":  {
-                                                           "type":  "data",
-                                                           "title":  "Servicos backend associados",
-                                                           "description":  "Requests, falhas, p50/p95/p99 e chamadas downstream por servico.",
-                                                           "query":  "fetch spans\n| filter in($service_name, array(\"\", \"(All services)\")) or dt.service.name == $service_name\n| filter request.is_root_span == true or span.kind == \"client\"\n// A mesma passagem calcula trafego de entrada e chamadas client do servico.\n| fieldsAdd sampling_probability = (power(2, 56) - coalesce(sampling.threshold, 0)) * power(2, -56)\n| fieldsAdd multiplicity = (1 / sampling_probability) * coalesce(aggregation.count, 1) * dt.system.sampling_ratio\n| summarize\n    Requests = sum(if(request.is_root_span == true, multiplicity, else: 0)),\n    Failures = sum(if(request.is_root_span == true and request.is_failed == true, multiplicity, else: 0)),\n    `p50 ms` = percentile(if(request.is_root_span == true, duration), 50) / 1ms,\n    `p95 ms` = percentile(if(request.is_root_span == true, duration), 95) / 1ms,\n    `p99 ms` = percentile(if(request.is_root_span == true, duration), 99) / 1ms,\n    `Downstream calls` = sum(if(span.kind == \"client\", multiplicity, else: 0)),\n    by: {`Service name` = dt.service.name}\n| filter Requests \u003e 0\n| fieldsAdd `Failure rate %` = round(100.0 * Failures / Requests, decimals: 2)\n| sort Requests desc\n| limit 100",
-                                                           "visualization":  "table",
-                                                           "visualizationSettings":  {
-                                                                                         "autoSelectVisualization":  false,
-                                                                                         "table":  {
-                                                                                                       "rowDensity":  "condensed",
-                                                                                                       "columnWidthStrategy":  "content",
-                                                                                                       "enableSparklines":  false,
-                                                                                                       "linewrapEnabled":  true
-                                                                                                   }
-                                                                                     },
-                                                           "querySettings":  {
-                                                                                 "maxResultRecords":  1000,
-                                                                                 "defaultScanLimitGbytes":  100,
-                                                                                 "maxResultMegaBytes":  20,
-                                                                                 "defaultSamplingRatio":  1,
-                                                                                 "enableSampling":  false
-                                                                             }
-                                                       },
-                                  "section_10":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 10 - Topologia simplificada\n\nInforme `service_name` para limitar a travessia. A visao usa somente um hop de `calls`; Apache/WAS aparecem apenas se forem servicos Smartscape relacionados, sem tentar reproduzir todo o Smartscape."
-                                                 },
-                                  "smartscape_dependencies":  {
+                                  "instrumentation_overlap":  {
                                                                   "type":  "data",
-                                                                  "title":  "Smartscape - dependencias de 1 hop",
-                                                                  "description":  "Servico selecionado e servicos downstream ligados por calls. Vazio ate service_name ser informado.",
-                                                                  "query":  "smartscapeNodes \"SERVICE\"\n| filter not in($service_name, array(\"\", \"(All services)\")) and name == $service_name\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| fields\n    Source = dt.traverse.history[0][name],\n    Relationship = \"calls\",\n    Target = name,\n    `Target ID` = id,\n    Hop = 1\n| limit 100",
+                                                                  "title":  "Instrumentation IDs across the frontend pair",
+                                                                  "description":  "CRITICAL means the same instrumentation ID was observed under more than one selected frontend.",
+                                                                  "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $frontend_upstream != \"\" and $frontend_target != \"\"\n| filter in(frontend.name, array($frontend_upstream, $frontend_target))\n| filter isNotNull(dt.rum.instrumentation.id)\n| summarize\n    Events = count(),\n    Sessions = countDistinct(dt.rum.session.id),\n    Frontends = collectDistinct(frontend.name),\n    `Agent types` = collectDistinct(dt.rum.agent.type),\n    `First seen` = min(start_time),\n    `Last seen` = max(start_time),\n    by: {`Instrumentation ID` = dt.rum.instrumentation.id}\n| fieldsAdd Status = if(arraySize(Frontends) \u003e 1, \"CRITICAL\", else: \"OK\")\n| fields Status, `Instrumentation ID`, Frontends, `Agent types`, Events, Sessions, `First seen`, `Last seen`\n| sort Events desc\n| limit 100",
                                                                   "visualization":  "table",
                                                                   "visualizationSettings":  {
                                                                                                 "autoSelectVisualization":  false,
@@ -554,22 +135,45 @@
                                                                                                           }
                                                                                             },
                                                                   "querySettings":  {
-                                                                                        "maxResultRecords":  1000,
-                                                                                        "defaultScanLimitGbytes":  100,
-                                                                                        "maxResultMegaBytes":  20,
+                                                                                        "maxResultRecords":  500,
+                                                                                        "defaultScanLimitGbytes":  2,
+                                                                                        "maxResultMegaBytes":  5,
                                                                                         "defaultSamplingRatio":  1,
                                                                                         "enableSampling":  false
                                                                                     }
                                                               },
-                                  "section_11":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 11 - Possiveis anomalias de RUM\n\nOs thresholds abaixo sao heuristicas de triagem: mapping incorreto \u003e=50% e `CRITICAL`; mais de um instrumentation ID e `WARNING`; continuidade \u003c5% e cobertura de trace \u003c80% sao `WARNING`. Valide sempre a evidencia bruta nos tiles anteriores."
-                                                 },
-                                  "possible_anomalies":  {
+                                  "url_ownership":  {
+                                                        "type":  "data",
+                                                        "title":  "Configured URL ownership",
+                                                        "description":  "Groups by configured URL scope instead of full URLs to control cardinality and expose cross-mapping.",
+                                                        "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $frontend_upstream != \"\" and $frontend_target != \"\"\n| filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)\n| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)\n| filter isNotNull(observed_url)\n    and (($upstream_url != \"\" and contains(observed_url, $upstream_url:triplequote, false))\n      or ($target_url != \"\" and contains(observed_url, $target_url:triplequote, false)))\n| fieldsAdd\n    `URL scope` = if($target_url != \"\" and contains(observed_url, $target_url:triplequote, false), \"TARGET\", else: \"UPSTREAM\"),\n    `Observed frontend` = coalesce(frontend.name, \"(unknown)\")\n| fieldsAdd `Expected frontend` = if(`URL scope` == \"TARGET\", $frontend_target, else: $frontend_upstream)\n| summarize\n    Events = count(),\n    Sessions = countDistinct(dt.rum.session.id),\n    `Instrumentation IDs` = collectDistinct(dt.rum.instrumentation.id),\n    `Sample URL` = takeAny(observed_url),\n    by: {`URL scope`, `Expected frontend`, `Observed frontend`}\n| fieldsAdd Status = if(`Observed frontend` == `Expected frontend`, \"OK\", else: \"CRITICAL\")\n| fields Status, `URL scope`, `Expected frontend`, `Observed frontend`, Events, Sessions, `Instrumentation IDs`, `Sample URL`\n| sort Events desc\n| limit 50",
+                                                        "visualization":  "table",
+                                                        "visualizationSettings":  {
+                                                                                      "autoSelectVisualization":  false,
+                                                                                      "table":  {
+                                                                                                    "rowDensity":  "condensed",
+                                                                                                    "columnWidthStrategy":  "content",
+                                                                                                    "enableSparklines":  false,
+                                                                                                    "linewrapEnabled":  true
+                                                                                                }
+                                                                                  },
+                                                        "querySettings":  {
+                                                                              "maxResultRecords":  500,
+                                                                              "defaultScanLimitGbytes":  2,
+                                                                              "maxResultMegaBytes":  5,
+                                                                              "defaultSamplingRatio":  1,
+                                                                              "enableSampling":  false
+                                                                          }
+                                                    },
+                                  "section_sessions":  {
+                                                           "type":  "markdown",
+                                                           "content":  "## 03 - Session continuity and focused timeline\n\nContinuity is evidence, not proof of correctness. The comparison is bounded to at most 60 minutes; use `session_id` for a focused event timeline."
+                                                       },
+                                  "session_continuity":  {
                                                              "type":  "data",
-                                                             "title":  "Hipoteses diagnosticas",
-                                                             "description":  "Agregacoes separadas de RUM, sessoes e spans, sem join amplo entre tabelas.",
-                                                             "query":  "fetch user.events\n| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)\n// Uma agregacao reune os sinais RUM para evitar varias varreduras do mesmo periodo.\n| summarize {\n    hub_events = countIf(frontend.name == $frontend_hub),\n    application_events = countIf(frontend.name == $frontend_application),\n    application_url_events = countIf($application_url != \"\" and contains(observed_url, $application_url:triplequote, false)),\n    application_url_in_hub = countIf($application_url != \"\" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_hub),\n    hub_id_count = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),\n    application_id_count = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),\n    application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request),\n    traced_application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request and isNotNull(trace.id))\n  }\n| fieldsAdd\n    wrong_mapping_pct = if(application_url_events \u003e 0, 100.0 * application_url_in_hub / application_url_events),\n    trace_coverage_pct = if(application_requests \u003e 0, 100.0 * traced_application_requests / application_requests)\n| fieldsAdd checks = array(\n    record(Check = \"Possible wrong frontend mapping\", Status = if($application_url == \"\", \"NOT_CONFIGURED\", else: if(wrong_mapping_pct \u003e= 50, \"CRITICAL\", else: if(wrong_mapping_pct \u003e 0, \"WARNING\", else: \"OK\"))), Evidence = concat(toString(round(coalesce(wrong_mapping_pct, 0), decimals: 1)), \"% of application URL events observed in HUB\")),\n    record(Check = \"Multiple instrumentation IDs\", Status = if(hub_id_count \u003e 1 or application_id_count \u003e 1, \"WARNING\", else: \"OK\"), Evidence = concat(\"HUB=\", toString(hub_id_count), \"; application=\", toString(application_id_count))),\n    record(Check = \"Angular RUM not observed\", Status = if($application_url == \"\", \"NOT_CONFIGURED\", else: if(application_url_events == 0, \"CRITICAL\", else: \"OK\")), Evidence = concat(toString(application_url_events), \" events for application_url\")),\n    record(Check = \"Requests without observed backend correlation\", Status = if(application_requests == 0, \"NO_DATA\", else: if(trace_coverage_pct \u003c 50, \"CRITICAL\", else: if(trace_coverage_pct \u003c 80, \"WARNING\", else: \"OK\"))), Evidence = concat(toString(traced_application_requests), \"/\", toString(application_requests), \" requests with trace.id\"))\n  )\n| fields checks\n| expand checks\n| fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]\n| append [\n    // Continuidade e calculada por session ID sem materializar arrays de alta cardinalidade.\n    fetch user.events\n    | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)\n    | summarize\n        hub_events = countIf(frontend.name == $frontend_hub),\n        application_events = countIf(frontend.name == $frontend_application),\n        by: {dt.rum.session.id}\n    | summarize\n        hub_sessions = countIf(hub_events \u003e 0),\n        application_sessions = countIf(application_events \u003e 0),\n        shared_sessions = countIf(hub_events \u003e 0 and application_events \u003e 0)\n    | fieldsAdd smaller_session_set = if(hub_sessions \u003c application_sessions, hub_sessions, else: application_sessions)\n    | fieldsAdd continuity_pct = if(smaller_session_set \u003e 0, 100.0 * shared_sessions / smaller_session_set)\n    | fields\n        Check = \"Session continuity not observed\",\n        Status = if(hub_sessions \u003e 0 and application_sessions \u003e 0 and coalesce(continuity_pct, 0) \u003c 5, \"WARNING\", else: \"OK\"),\n        Evidence = concat(toString(shared_sessions), \" shared sessions; \", toString(round(coalesce(continuity_pct, 0), decimals: 1)), \"% of smaller session set\")\n  ]\n| append [\n    // O bloco de spans acrescenta a hipotese backend sem fazer join amplo com user.events.\n    fetch spans\n    | filter request.is_root_span == true\n    | filter in($service_name, array(\"\", \"(All services)\")) or dt.service.name == $service_name\n    | fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, \"\")\n    | filter $request_url == \"\" or contains(request_target, $request_url:triplequote, false)\n    | summarize\n        backend_requests = count(),\n        backend_linked = countIf(isNotNull(dt.rum.session.id) or dt.rum.is_linking_candidate == true)\n    | fields\n        Check = \"Backend without observed RUM request\",\n        Status = if(backend_requests \u003e 0 and backend_linked == 0, \"WARNING\", else: \"INFO\"),\n        Evidence = concat(toString(backend_linked), \"/\", toString(backend_requests), \" root spans with RUM link\")\n  ]",
+                                                             "title":  "Recent sessions across the frontend pair",
+                                                             "description":  "Shows up to 100 recent session IDs and classifies their observed presence across upstream and target.",
+                                                             "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $frontend_upstream != \"\" and $frontend_target != \"\"\n| filter in(frontend.name, array($frontend_upstream, $frontend_target)) and isNotNull(dt.rum.session.id)\n| summarize\n    `Upstream events` = countIf(frontend.name == $frontend_upstream),\n    `Target events` = countIf(frontend.name == $frontend_target),\n    `First event` = min(start_time),\n    `Last event` = max(start_time),\n    Events = count(),\n    by: {`Session ID` = dt.rum.session.id}\n| fieldsAdd Classification = if(`Upstream events` \u003e 0 and `Target events` \u003e 0, \"CONTINUOUS\",\n    else: if(`Upstream events` \u003e 0, \"UPSTREAM_ONLY\", else: \"TARGET_ONLY\"))\n| fieldsAdd `Observed duration` = `Last event` - `First event`\n| fields Classification, `Session ID`, `Upstream events`, `Target events`, Events, `First event`, `Last event`, `Observed duration`\n| sort `Last event` desc\n| limit 100",
                                                              "visualization":  "table",
                                                              "visualizationSettings":  {
                                                                                            "autoSelectVisualization":  false,
@@ -581,22 +185,72 @@
                                                                                                      }
                                                                                        },
                                                              "querySettings":  {
-                                                                                   "maxResultRecords":  1000,
-                                                                                   "defaultScanLimitGbytes":  100,
-                                                                                   "maxResultMegaBytes":  20,
+                                                                                   "maxResultRecords":  500,
+                                                                                   "defaultScanLimitGbytes":  2,
+                                                                                   "maxResultMegaBytes":  5,
                                                                                    "defaultSamplingRatio":  1,
                                                                                    "enableSampling":  false
                                                                                }
                                                          },
-                                  "section_12":  {
-                                                     "type":  "markdown",
-                                                     "content":  "## 12 - Matriz de diagnostico\n\nResumo final para decidir o proximo passo: regras de frontend/injecao, continuidade de sessao, propagacao W3C/Server-Timing ou investigacao de servico/trace. `OK` significa apenas que a evidencia esperada foi observada no periodo."
-                                                 },
-                                  "diagnostic_matrix":  {
+                                  "session_timeline":  {
+                                                           "type":  "data",
+                                                           "title":  "Timeline for one session",
+                                                           "description":  "No useful scan is intended until session_id is filled; results are limited to 300 events.",
+                                                           "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $session_id != \"\" and dt.rum.session.id == $session_id\n| fieldsAdd `Event type` = if(characteristics.is_invalid, \"INVALID\",\n    else: if(characteristics.has_error, \"ERROR\",\n    else: if(characteristics.has_page_summary, \"PAGE_SUMMARY\",\n    else: if(characteristics.has_view_summary, \"VIEW_SUMMARY\",\n    else: if(characteristics.has_user_action, \"USER_ACTION\",\n    else: if(characteristics.has_navigation, \"NAVIGATION\",\n    else: if(characteristics.has_user_interaction, \"USER_INTERACTION\",\n    else: if(characteristics.has_request, \"REQUEST\", else: \"OTHER\"))))))))\n| fields\n    Timestamp = start_time,\n    Frontend = frontend.name,\n    `Page/View URL` = coalesce(page.url.full, view.url.full),\n    `Event type`,\n    `User action` = coalesce(user_action.custom_name, user_action.type, interaction.type),\n    `Request URL` = url.full,\n    `Request method` = http.request.method,\n    `Status code` = http.response.status_code,\n    `Trace ID` = trace.id,\n    `Instrumentation ID` = dt.rum.instrumentation.id\n| sort Timestamp asc\n| limit 300",
+                                                           "visualization":  "table",
+                                                           "visualizationSettings":  {
+                                                                                         "autoSelectVisualization":  false,
+                                                                                         "table":  {
+                                                                                                       "rowDensity":  "condensed",
+                                                                                                       "columnWidthStrategy":  "content",
+                                                                                                       "enableSparklines":  false,
+                                                                                                       "linewrapEnabled":  true
+                                                                                                   }
+                                                                                     },
+                                                           "querySettings":  {
+                                                                                 "maxResultRecords":  500,
+                                                                                 "defaultScanLimitGbytes":  2,
+                                                                                 "maxResultMegaBytes":  5,
+                                                                                 "defaultSamplingRatio":  1,
+                                                                                 "enableSampling":  false
+                                                                             }
+                                                       },
+                                  "section_requests":  {
+                                                           "type":  "markdown",
+                                                           "content":  "## 04 - Target requests and frontend/backend handoff\n\nRequests are grouped by domain and path, not full URL, to avoid query-string cardinality. Copy a sample trace ID into `trace_id` for an exact backend lookup."
+                                                       },
+                                  "target_requests":  {
+                                                          "type":  "data",
+                                                          "title":  "Requests emitted by the target frontend",
+                                                          "description":  "Combines volume, failures, latency, sessions, and trace coverage in one bounded scan.",
+                                                          "query":  "fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $frontend_target != \"\" and frontend.name == $frontend_target and characteristics.has_request\n| fieldsAdd request_target = coalesce(url.full, url.path, \"\")\n| filter $request_url == \"\" or contains(request_target, $request_url:triplequote, false)\n| summarize\n    Calls = count(),\n    Failures = countIf(characteristics.has_failed_request),\n    Sessions = countDistinct(dt.rum.session.id),\n    Traced = countIf(isNotNull(trace.id)),\n    `p50 ms` = percentile(duration, 50) / 1ms,\n    `p95 ms` = percentile(duration, 95) / 1ms,\n    `Sample trace ID` = takeAny(if(isNotNull(trace.id), toString(trace.id))),\n    `Sample session ID` = takeAny(dt.rum.session.id),\n    by: {Domain = url.domain, Path = url.path, Method = http.request.method, Status = http.response.status_code}\n| fieldsAdd `Trace coverage %` = round(100.0 * Traced / Calls, decimals: 1)\n| fields Domain, Path, Method, Status, Calls, Failures, Sessions, Traced, `Trace coverage %`, `p50 ms`, `p95 ms`, `Sample trace ID`, `Sample session ID`\n| sort Calls desc\n| limit 100",
+                                                          "visualization":  "table",
+                                                          "visualizationSettings":  {
+                                                                                        "autoSelectVisualization":  false,
+                                                                                        "table":  {
+                                                                                                      "rowDensity":  "condensed",
+                                                                                                      "columnWidthStrategy":  "content",
+                                                                                                      "enableSparklines":  false,
+                                                                                                      "linewrapEnabled":  true
+                                                                                                  }
+                                                                                    },
+                                                          "querySettings":  {
+                                                                                "maxResultRecords":  500,
+                                                                                "defaultScanLimitGbytes":  2,
+                                                                                "maxResultMegaBytes":  5,
+                                                                                "defaultSamplingRatio":  1,
+                                                                                "enableSampling":  false
+                                                                            }
+                                                      },
+                                  "section_topology":  {
+                                                           "type":  "markdown",
+                                                           "content":  "## 05 - Frontend to services and observed servers\n\nThe left table uses current Smartscape `calls` relationships for either FRONTEND or Web Application node types. The right table requires one exact `trace_id` and shows only hosts and processes observed in that request; it does not run a broad server inventory."
+                                                       },
+                                  "frontend_services":  {
                                                             "type":  "data",
-                                                            "title":  "Check - Status - Evidence",
-                                                            "description":  "Matriz consolidada de RUM e backend; hipoteses, nao causas definitivas.",
-                                                            "query":  "fetch user.events\n| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)\n// A matriz calcula todos os checks de frontend em uma unica passagem por user.events.\n| summarize {\n    hub_events = countIf(frontend.name == $frontend_hub),\n    application_events = countIf(frontend.name == $frontend_application),\n    application_url_events = countIf($application_url != \"\" and contains(observed_url, $application_url:triplequote, false)),\n    application_url_in_hub = countIf($application_url != \"\" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_hub),\n    application_url_in_application = countIf($application_url != \"\" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_application),\n    hub_id_count = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),\n    application_id_count = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),\n    application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request),\n    traced_application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request and isNotNull(trace.id))\n  }\n| fieldsAdd\n    wrong_mapping_pct = if(application_url_events \u003e 0, 100.0 * application_url_in_hub / application_url_events),\n    expected_mapping_pct = if(application_url_events \u003e 0, 100.0 * application_url_in_application / application_url_events),\n    trace_coverage_pct = if(application_requests \u003e 0, 100.0 * traced_application_requests / application_requests)\n| fieldsAdd checks = array(\n    record(Check = \"HUB RUM detected\", Status = if(hub_events \u003e 0, \"OK\", else: \"CRITICAL\"), Evidence = concat(toString(hub_events), \" events\")),\n    record(Check = \"Angular RUM detected\", Status = if(application_events \u003e 0, \"OK\", else: \"CRITICAL\"), Evidence = concat(toString(application_events), \" events\")),\n    record(Check = \"Single HUB instrumentation\", Status = if(hub_id_count == 1, \"OK\", else: if(hub_id_count == 0, \"NO_DATA\", else: \"WARNING\")), Evidence = concat(toString(hub_id_count), \" IDs\")),\n    record(Check = \"Single Angular instrumentation\", Status = if(application_id_count == 1, \"OK\", else: if(application_id_count == 0, \"NO_DATA\", else: \"WARNING\")), Evidence = concat(toString(application_id_count), \" IDs\")),\n    record(Check = \"Angular URL assigned to Angular frontend\", Status = if($application_url == \"\", \"NOT_CONFIGURED\", else: if(coalesce(expected_mapping_pct, 0) \u003e= 95, \"OK\", else: \"WARNING\")), Evidence = concat(toString(round(coalesce(expected_mapping_pct, 0), decimals: 1)), \"%\")),\n    record(Check = \"Frontend requests detected\", Status = if(application_requests \u003e 0, \"OK\", else: \"WARNING\"), Evidence = concat(toString(application_requests), \" requests\")),\n    record(Check = \"Frontend/backend correlation\", Status = if(application_requests == 0, \"NO_DATA\", else: if(trace_coverage_pct \u003e= 80, \"OK\", else: \"WARNING\")), Evidence = concat(toString(round(coalesce(trace_coverage_pct, 0), decimals: 1)), \"% with trace.id\")),\n    record(Check = \"Unexpected frontend mapping\", Status = if($application_url == \"\", \"NOT_CONFIGURED\", else: if(coalesce(wrong_mapping_pct, 0) \u003e= 50, \"CRITICAL\", else: if(coalesce(wrong_mapping_pct, 0) \u003e 0, \"WARNING\", else: \"OK\"))), Evidence = concat(toString(round(coalesce(wrong_mapping_pct, 0), decimals: 1)), \"% application URL in HUB\"))\n  )\n| fields checks\n| expand checks\n| fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]\n| append [\n    // Sessoes sao agregadas por ID para evitar arrays grandes no resumo final.\n    fetch user.events\n    | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)\n    | summarize\n        hub_events = countIf(frontend.name == $frontend_hub),\n        application_events = countIf(frontend.name == $frontend_application),\n        by: {dt.rum.session.id}\n    | summarize\n        hub_sessions = countIf(hub_events \u003e 0),\n        application_sessions = countIf(application_events \u003e 0),\n        shared_sessions = countIf(hub_events \u003e 0 and application_events \u003e 0)\n    | fieldsAdd smaller_session_set = if(hub_sessions \u003c application_sessions, hub_sessions, else: application_sessions)\n    | fieldsAdd continuity_pct = if(smaller_session_set \u003e 0, 100.0 * shared_sessions / smaller_session_set)\n    | fields\n        Check = \"Shared sessions observed\",\n        Status = if(hub_sessions \u003e 0 and application_sessions \u003e 0 and coalesce(continuity_pct, 0) \u003c 5, \"WARNING\", else: \"OK\"),\n        Evidence = concat(toString(shared_sessions), \" sessions; \", toString(round(coalesce(continuity_pct, 0), decimals: 1)), \"%\")\n  ]\n| append [\n    // Backend e agregado separadamente; ausencia de link e somente uma evidencia de triagem.\n    fetch spans\n    | filter request.is_root_span == true\n    | filter in($service_name, array(\"\", \"(All services)\")) or dt.service.name == $service_name\n    | fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, \"\")\n    | filter $request_url == \"\" or contains(request_target, $request_url:triplequote, false)\n    | summarize\n        backend_requests = count(),\n        backend_linked = countIf(isNotNull(dt.rum.session.id) or dt.rum.is_linking_candidate == true)\n    | fieldsAdd backend_link_pct = if(backend_requests \u003e 0, 100.0 * backend_linked / backend_requests)\n    | fieldsAdd checks = array(\n        record(Check = \"Backend traces observed\", Status = if(backend_requests \u003e 0, \"OK\", else: \"WARNING\"), Evidence = concat(toString(backend_requests), \" root spans\")),\n        record(Check = \"Backend spans with observed RUM link\", Status = if(backend_requests == 0, \"NO_DATA\", else: if(backend_linked \u003e 0, \"OK\", else: \"WARNING\")), Evidence = concat(toString(backend_linked), \"/\", toString(backend_requests), \" linked\")),\n        record(Check = \"Backend without observed RUM request\", Status = if(backend_requests \u003e 0 and backend_linked == 0, \"WARNING\", else: \"INFO\"), Evidence = concat(toString(round(coalesce(backend_link_pct, 0), decimals: 1)), \"% root spans with RUM link\"))\n      )\n    | fields checks\n    | expand checks\n    | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]\n  ]",
+                                                            "title":  "Services linked to the selected web applications",
+                                                            "description":  "Current Smartscape calls relationships. Source type and entity IDs keep the mapping explicit when names are duplicated.",
+                                                            "query":  "smartscapeEdges \"calls\"\n| filter $frontend_upstream != \"\" and $frontend_target != \"\"\n| filter target_type == \"SERVICE\"\n| fieldsAdd\n    `Frontend / Web application` = getNodeName(source_id),\n    `Frontend type` = source_type,\n    Service = getNodeName(target_id),\n    `Edge kind` = dt.system.edge_kind\n| filter in(`Frontend / Web application`, array($frontend_upstream, $frontend_target))\n| dedup source_id, target_id\n| fields\n    `Frontend / Web application`,\n    `Frontend type`,\n    `Frontend ID` = source_id,\n    Relation = type,\n    Service,\n    `Service ID` = target_id,\n    `Edge kind`\n| sort `Frontend / Web application` asc, Service asc\n| limit 100",
                                                             "visualization":  "table",
                                                             "visualizationSettings":  {
                                                                                           "autoSelectVisualization":  false,
@@ -608,16 +262,39 @@
                                                                                                     }
                                                                                       },
                                                             "querySettings":  {
-                                                                                  "maxResultRecords":  1000,
-                                                                                  "defaultScanLimitGbytes":  100,
-                                                                                  "maxResultMegaBytes":  20,
+                                                                                  "maxResultRecords":  500,
+                                                                                  "defaultScanLimitGbytes":  2,
+                                                                                  "maxResultMegaBytes":  5,
                                                                                   "defaultSamplingRatio":  1,
                                                                                   "enableSampling":  false
                                                                               }
                                                         },
+                                  "frontend_servers":  {
+                                                           "type":  "data",
+                                                           "title":  "Servers observed for the selected trace",
+                                                           "description":  "Exact trace lookup grouped by service, host, and process group. This preserves the single bounded spans scan.",
+                                                           "query":  "fetch spans, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: \"m\")\n| filter $trace_id != \"\" and trace.id == toUid($trace_id)\n| filter isNotNull(dt.smartscape.host)\n| summarize\n    `Observed spans` = count(),\n    `Failed spans` = countIf(request.is_failed == true),\n    `First span` = min(start_time),\n    `Last span` = max(start_time),\n    by:{dt.smartscape.service, dt.smartscape.host, dt.process_group.detected_name}\n| fields\n    Service = getNodeName(dt.smartscape.service),\n    `Service ID` = dt.smartscape.service,\n    Server = getNodeName(dt.smartscape.host),\n    `Host ID` = dt.smartscape.host,\n    `Process group` = dt.process_group.detected_name,\n    `Observed spans`,\n    `Failed spans`,\n    `First span`,\n    `Last span`\n| sort `Observed spans` desc, Service asc, Server asc\n| limit 100",
+                                                           "visualization":  "table",
+                                                           "visualizationSettings":  {
+                                                                                         "autoSelectVisualization":  false,
+                                                                                         "table":  {
+                                                                                                       "rowDensity":  "condensed",
+                                                                                                       "columnWidthStrategy":  "content",
+                                                                                                       "enableSparklines":  false,
+                                                                                                       "linewrapEnabled":  true
+                                                                                                   }
+                                                                                     },
+                                                           "querySettings":  {
+                                                                                 "maxResultRecords":  500,
+                                                                                 "defaultScanLimitGbytes":  2,
+                                                                                 "maxResultMegaBytes":  5,
+                                                                                 "defaultSamplingRatio":  1,
+                                                                                 "enableSampling":  false
+                                                                             }
+                                                       },
                                   "footer":  {
                                                  "type":  "markdown",
-                                                 "content":  "### Proximos passos\n\n1. Confirme URL -\u003e frontend e instrumentation IDs. 2. Abra uma session ID na timeline. 3. Restrinja `request_url` e compare cobertura/hints. 4. Use um `trace.id` especifico no Distributed Tracing. 5. Confirme servico e dependencias Smartscape. Consulte o README para limitacoes, alternativas de campos e validacao no tenant."
+                                                 "content":  "### Recommended decision order\n\n1. With upstream expected `DISABLED`, confirm zero recent upstream events. 2. Confirm exactly one target instrumentation ID. 3. Check whether target URLs still map to upstream. 4. Inspect a recent session. 5. Inspect target requests. 6. Compare the linked services. 7. Copy one trace ID to prove which service, host, and process handled the request. A non-zero upstream result after removal is evidence that the change did not fully take effect, not proof of where stale injection remains."
                                              }
                               },
                     "layouts":  {
@@ -627,219 +304,93 @@
                                                   "w":  24,
                                                   "h":  5
                                               },
-                                    "scope_note":  {
-                                                       "x":  0,
-                                                       "y":  5,
-                                                       "w":  24,
-                                                       "h":  4
-                                                   },
-                                    "section_01":  {
-                                                       "x":  0,
-                                                       "y":  9,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "status_rum_volume":  {
-                                                              "x":  0,
-                                                              "y":  11,
-                                                              "w":  8,
-                                                              "h":  7
-                                                          },
-                                    "status_instrumentation":  {
-                                                                   "x":  8,
-                                                                   "y":  11,
-                                                                   "w":  8,
-                                                                   "h":  7
-                                                               },
-                                    "status_requests":  {
-                                                            "x":  16,
-                                                            "y":  11,
-                                                            "w":  8,
-                                                            "h":  7
-                                                        },
-                                    "section_02":  {
-                                                       "x":  0,
-                                                       "y":  18,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "frontend_instrumentation":  {
-                                                                     "x":  0,
-                                                                     "y":  20,
-                                                                     "w":  16,
-                                                                     "h":  9
-                                                                 },
-                                    "shared_instrumentation":  {
-                                                                   "x":  16,
-                                                                   "y":  20,
-                                                                   "w":  8,
-                                                                   "h":  9
-                                                               },
-                                    "section_03":  {
-                                                       "x":  0,
-                                                       "y":  29,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "url_frontend_detail":  {
-                                                                "x":  0,
-                                                                "y":  31,
-                                                                "w":  14,
-                                                                "h":  10
-                                                            },
-                                    "url_mapping_status":  {
-                                                               "x":  14,
-                                                               "y":  31,
-                                                               "w":  10,
-                                                               "h":  10
-                                                           },
-                                    "navigation_redirects":  {
-                                                                 "x":  0,
-                                                                 "y":  41,
-                                                                 "w":  24,
-                                                                 "h":  10
-                                                             },
-                                    "section_04":  {
-                                                       "x":  0,
-                                                       "y":  51,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "session_continuity":  {
-                                                               "x":  0,
-                                                               "y":  53,
-                                                               "w":  16,
-                                                               "h":  11
-                                                           },
-                                    "session_classification":  {
-                                                                   "x":  16,
-                                                                   "y":  53,
-                                                                   "w":  8,
-                                                                   "h":  11
-                                                               },
-                                    "section_05":  {
-                                                       "x":  0,
-                                                       "y":  64,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "session_timeline":  {
-                                                             "x":  0,
-                                                             "y":  66,
-                                                             "w":  24,
-                                                             "h":  12
-                                                         },
-                                    "section_06":  {
-                                                       "x":  0,
-                                                       "y":  78,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "frontend_requests":  {
-                                                              "x":  0,
-                                                              "y":  80,
-                                                              "w":  16,
-                                                              "h":  10
-                                                          },
-                                    "request_trend":  {
-                                                          "x":  16,
-                                                          "y":  80,
-                                                          "w":  8,
-                                                          "h":  10
+                                    "configuration":  {
+                                                          "x":  0,
+                                                          "y":  5,
+                                                          "w":  24,
+                                                          "h":  4
                                                       },
-                                    "section_07":  {
-                                                       "x":  0,
-                                                       "y":  90,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "request_errors":  {
+                                    "section_status":  {
                                                            "x":  0,
-                                                           "y":  92,
-                                                           "w":  12,
-                                                           "h":  10
+                                                           "y":  9,
+                                                           "w":  24,
+                                                           "h":  2
                                                        },
-                                    "slow_requests":  {
-                                                          "x":  12,
-                                                          "y":  92,
-                                                          "w":  12,
-                                                          "h":  10
-                                                      },
-                                    "section_08":  {
-                                                       "x":  0,
-                                                       "y":  102,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "trace_coverage":  {
-                                                           "x":  0,
-                                                           "y":  104,
-                                                           "w":  8,
-                                                           "h":  10
-                                                       },
-                                    "backend_endpoints":  {
-                                                              "x":  8,
-                                                              "y":  104,
-                                                              "w":  8,
-                                                              "h":  10
-                                                          },
-                                    "observed_dependencies":  {
-                                                                  "x":  16,
-                                                                  "y":  104,
-                                                                  "w":  8,
-                                                                  "h":  10
-                                                              },
-                                    "section_09":  {
-                                                       "x":  0,
-                                                       "y":  114,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "backend_services":  {
-                                                             "x":  0,
-                                                             "y":  116,
-                                                             "w":  24,
-                                                             "h":  10
-                                                         },
-                                    "section_10":  {
-                                                       "x":  0,
-                                                       "y":  126,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "smartscape_dependencies":  {
-                                                                    "x":  0,
-                                                                    "y":  128,
-                                                                    "w":  24,
-                                                                    "h":  9
-                                                                },
-                                    "section_11":  {
-                                                       "x":  0,
-                                                       "y":  137,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
-                                    "possible_anomalies":  {
-                                                               "x":  0,
-                                                               "y":  139,
-                                                               "w":  24,
-                                                               "h":  9
-                                                           },
-                                    "section_12":  {
-                                                       "x":  0,
-                                                       "y":  148,
-                                                       "w":  24,
-                                                       "h":  2
-                                                   },
                                     "diagnostic_matrix":  {
                                                               "x":  0,
-                                                              "y":  150,
+                                                              "y":  11,
                                                               "w":  24,
-                                                              "h":  12
+                                                              "h":  10
                                                           },
+                                    "section_mapping":  {
+                                                            "x":  0,
+                                                            "y":  21,
+                                                            "w":  24,
+                                                            "h":  2
+                                                        },
+                                    "instrumentation_overlap":  {
+                                                                    "x":  0,
+                                                                    "y":  23,
+                                                                    "w":  12,
+                                                                    "h":  9
+                                                                },
+                                    "url_ownership":  {
+                                                          "x":  12,
+                                                          "y":  23,
+                                                          "w":  12,
+                                                          "h":  9
+                                                      },
+                                    "section_sessions":  {
+                                                             "x":  0,
+                                                             "y":  32,
+                                                             "w":  24,
+                                                             "h":  2
+                                                         },
+                                    "session_continuity":  {
+                                                               "x":  0,
+                                                               "y":  34,
+                                                               "w":  12,
+                                                               "h":  10
+                                                           },
+                                    "session_timeline":  {
+                                                             "x":  12,
+                                                             "y":  34,
+                                                             "w":  12,
+                                                             "h":  10
+                                                         },
+                                    "section_requests":  {
+                                                             "x":  0,
+                                                             "y":  44,
+                                                             "w":  24,
+                                                             "h":  2
+                                                         },
+                                    "target_requests":  {
+                                                            "x":  0,
+                                                            "y":  46,
+                                                            "w":  24,
+                                                            "h":  10
+                                                        },
+                                    "section_topology":  {
+                                                             "x":  0,
+                                                             "y":  56,
+                                                             "w":  24,
+                                                             "h":  2
+                                                         },
+                                    "frontend_services":  {
+                                                              "x":  0,
+                                                              "y":  58,
+                                                              "w":  12,
+                                                              "h":  10
+                                                          },
+                                    "frontend_servers":  {
+                                                             "x":  12,
+                                                             "y":  58,
+                                                             "w":  12,
+                                                             "h":  10
+                                                         },
                                     "footer":  {
                                                    "x":  0,
-                                                   "y":  162,
+                                                   "y":  68,
                                                    "w":  24,
                                                    "h":  5
                                                }

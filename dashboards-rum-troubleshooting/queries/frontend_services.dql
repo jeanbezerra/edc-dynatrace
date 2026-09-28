@@ -1,0 +1,20 @@
+smartscapeEdges "calls"
+| filter $frontend_upstream != "" and $frontend_target != ""
+| filter target_type == "SERVICE"
+| fieldsAdd
+    `Frontend / Web application` = getNodeName(source_id),
+    `Frontend type` = source_type,
+    Service = getNodeName(target_id),
+    `Edge kind` = dt.system.edge_kind
+| filter in(`Frontend / Web application`, array($frontend_upstream, $frontend_target))
+| dedup source_id, target_id
+| fields
+    `Frontend / Web application`,
+    `Frontend type`,
+    `Frontend ID` = source_id,
+    Relation = type,
+    Service,
+    `Service ID` = target_id,
+    `Edge kind`
+| sort `Frontend / Web application` asc, Service asc
+| limit 100

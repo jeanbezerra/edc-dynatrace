@@ -1,70 +1,70 @@
-fetch user.events
+fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| filter $frontend_upstream != "" and $frontend_target != ""
+| filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
-// A matriz calcula todos os checks de frontend em uma unica passagem por user.events.
+| filter in(frontend.name, array($frontend_upstream, $frontend_target))
+    or (isNull(frontend.name) and (
+        ($upstream_url != "" and contains(observed_url, $upstream_url:triplequote, false))
+        or ($target_url != "" and contains(observed_url, $target_url:triplequote, false))))
 | summarize {
-    hub_events = countIf(frontend.name == $frontend_hub),
-    application_events = countIf(frontend.name == $frontend_application),
-    application_url_events = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false)),
-    application_url_in_hub = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_hub),
-    application_url_in_application = countIf($application_url != "" and contains(observed_url, $application_url:triplequote, false) and frontend.name == $frontend_application),
-    hub_id_count = countDistinctExact(if(frontend.name == $frontend_hub, dt.rum.instrumentation.id)),
-    application_id_count = countDistinctExact(if(frontend.name == $frontend_application, dt.rum.instrumentation.id)),
-    application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request),
-    traced_application_requests = countIf(frontend.name == $frontend_application and characteristics.has_request and isNotNull(trace.id))
+    upstream_events = countIf(frontend.name == $frontend_upstream),
+    target_events = countIf(frontend.name == $frontend_target),
+    unknown_url_events = countIf(isNull(frontend.name)),
+    upstream_last_seen = max(if(frontend.name == $frontend_upstream, start_time)),
+    target_last_seen = max(if(frontend.name == $frontend_target, start_time)),
+    upstream_id_count = countDistinctExact(if(frontend.name == $frontend_upstream, dt.rum.instrumentation.id)),
+    target_id_count = countDistinctExact(if(frontend.name == $frontend_target, dt.rum.instrumentation.id)),
+    target_url_events = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false)),
+    target_url_in_upstream = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_upstream),
+    target_url_in_target = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_target),
+    target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request),
+    traced_target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request and isNotNull(trace.id))
   }
 | fieldsAdd
-    wrong_mapping_pct = if(application_url_events > 0, 100.0 * application_url_in_hub / application_url_events),
-    expected_mapping_pct = if(application_url_events > 0, 100.0 * application_url_in_application / application_url_events),
-    trace_coverage_pct = if(application_requests > 0, 100.0 * traced_application_requests / application_requests)
+    target_mapping_pct = if(target_url_events > 0, 100.0 * target_url_in_target / target_url_events),
+    trace_coverage_pct = if(target_requests > 0, 100.0 * traced_target_requests / target_requests)
 | fieldsAdd checks = array(
-    record(Check = "HUB RUM detected", Status = if(hub_events > 0, "OK", else: "CRITICAL"), Evidence = concat(toString(hub_events), " events")),
-    record(Check = "Angular RUM detected", Status = if(application_events > 0, "OK", else: "CRITICAL"), Evidence = concat(toString(application_events), " events")),
-    record(Check = "Single HUB instrumentation", Status = if(hub_id_count == 1, "OK", else: if(hub_id_count == 0, "NO_DATA", else: "WARNING")), Evidence = concat(toString(hub_id_count), " IDs")),
-    record(Check = "Single Angular instrumentation", Status = if(application_id_count == 1, "OK", else: if(application_id_count == 0, "NO_DATA", else: "WARNING")), Evidence = concat(toString(application_id_count), " IDs")),
-    record(Check = "Angular URL assigned to Angular frontend", Status = if($application_url == "", "NOT_CONFIGURED", else: if(coalesce(expected_mapping_pct, 0) >= 95, "OK", else: "WARNING")), Evidence = concat(toString(round(coalesce(expected_mapping_pct, 0), decimals: 1)), "%")),
-    record(Check = "Frontend requests detected", Status = if(application_requests > 0, "OK", else: "WARNING"), Evidence = concat(toString(application_requests), " requests")),
-    record(Check = "Frontend/backend correlation", Status = if(application_requests == 0, "NO_DATA", else: if(trace_coverage_pct >= 80, "OK", else: "WARNING")), Evidence = concat(toString(round(coalesce(trace_coverage_pct, 0), decimals: 1)), "% with trace.id")),
-    record(Check = "Unexpected frontend mapping", Status = if($application_url == "", "NOT_CONFIGURED", else: if(coalesce(wrong_mapping_pct, 0) >= 50, "CRITICAL", else: if(coalesce(wrong_mapping_pct, 0) > 0, "WARNING", else: "OK"))), Evidence = concat(toString(round(coalesce(wrong_mapping_pct, 0), decimals: 1)), "% application URL in HUB"))
+    record(
+        Check = "Upstream RUM state",
+        Status = if($upstream_rum_expected == "DISABLED",
+            if(upstream_events == 0, "OK", else: "CRITICAL"),
+            else: if(upstream_events > 0, "OK", else: "WARNING")),
+        Evidence = concat("expected=", $upstream_rum_expected, "; events=", toString(upstream_events), "; last=", coalesce(toString(upstream_last_seen), "none"))),
+    record(
+        Check = "Target RUM detected",
+        Status = if(target_events > 0, "OK", else: "CRITICAL"),
+        Evidence = concat(toString(target_events), " events; last=", coalesce(toString(target_last_seen), "none"))),
+    record(
+        Check = "Target URL assigned to target frontend",
+        Status = if($target_url == "", "NOT_CONFIGURED",
+            else: if(target_url_events == 0, "WARNING",
+            else: if(target_url_in_upstream > 0, "CRITICAL",
+            else: if(target_url_in_target > 0, "OK", else: "WARNING")))),
+        Evidence = concat(toString(target_url_in_target), "/", toString(target_url_events), " target URL events in target; ", toString(target_url_in_upstream), " in upstream")),
+    record(
+        Check = "Upstream instrumentation IDs",
+        Status = if($upstream_rum_expected == "DISABLED" and upstream_id_count == 0, "OK",
+            else: if(upstream_id_count <= 1, "OK", else: "WARNING")),
+        Evidence = concat(toString(upstream_id_count), " IDs")),
+    record(
+        Check = "Target instrumentation IDs",
+        Status = if(target_id_count == 1, "OK", else: if(target_id_count == 0, "CRITICAL", else: "WARNING")),
+        Evidence = concat(toString(target_id_count), " IDs")),
+    record(
+        Check = "Target requests detected",
+        Status = if(target_requests > 0, "OK", else: "WARNING"),
+        Evidence = concat(toString(target_requests), " requests")),
+    record(
+        Check = "Frontend trace context coverage",
+        Status = if(target_requests == 0, "NO_DATA",
+            else: if(trace_coverage_pct >= 80, "OK",
+            else: if(trace_coverage_pct >= 50, "WARNING", else: "CRITICAL"))),
+        Evidence = concat(toString(traced_target_requests), "/", toString(target_requests), " requests with trace.id")),
+    record(
+        Check = "Configured URLs without frontend",
+        Status = if(unknown_url_events == 0, "OK", else: "WARNING"),
+        Evidence = concat(toString(unknown_url_events), " URL-matched events without frontend"))
   )
 | fields checks
 | expand checks
 | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
-| append [
-    // Sessoes sao agregadas por ID para evitar arrays grandes no resumo final.
-    fetch user.events
-    | filter in(frontend.name, array($frontend_hub, $frontend_application)) and isNotNull(dt.rum.session.id)
-    | summarize
-        hub_events = countIf(frontend.name == $frontend_hub),
-        application_events = countIf(frontend.name == $frontend_application),
-        by: {dt.rum.session.id}
-    | summarize
-        hub_sessions = countIf(hub_events > 0),
-        application_sessions = countIf(application_events > 0),
-        shared_sessions = countIf(hub_events > 0 and application_events > 0)
-    | fieldsAdd smaller_session_set = if(hub_sessions < application_sessions, hub_sessions, else: application_sessions)
-    | fieldsAdd continuity_pct = if(smaller_session_set > 0, 100.0 * shared_sessions / smaller_session_set)
-    | fields
-        Check = "Shared sessions observed",
-        Status = if(hub_sessions > 0 and application_sessions > 0 and coalesce(continuity_pct, 0) < 5, "WARNING", else: "OK"),
-        Evidence = concat(toString(shared_sessions), " sessions; ", toString(round(coalesce(continuity_pct, 0), decimals: 1)), "%")
-  ]
-| append [
-    // Backend e agregado separadamente; ausencia de link e somente uma evidencia de triagem.
-    fetch spans
-    | filter request.is_root_span == true
-    | filter in($service_name, array("", "(All services)")) or dt.service.name == $service_name
-    | fieldsAdd request_target = coalesce(url.full, url.path, http.route, endpoint.name, "")
-    | filter $request_url == "" or contains(request_target, $request_url:triplequote, false)
-    | summarize
-        backend_requests = count(),
-        backend_linked = countIf(isNotNull(dt.rum.session.id) or dt.rum.is_linking_candidate == true)
-    | fieldsAdd backend_link_pct = if(backend_requests > 0, 100.0 * backend_linked / backend_requests)
-    | fieldsAdd checks = array(
-        record(Check = "Backend traces observed", Status = if(backend_requests > 0, "OK", else: "WARNING"), Evidence = concat(toString(backend_requests), " root spans")),
-        record(Check = "Backend spans with observed RUM link", Status = if(backend_requests == 0, "NO_DATA", else: if(backend_linked > 0, "OK", else: "WARNING")), Evidence = concat(toString(backend_linked), "/", toString(backend_requests), " linked")),
-        record(Check = "Backend without observed RUM request", Status = if(backend_requests > 0 and backend_linked == 0, "WARNING", else: "INFO"), Evidence = concat(toString(round(coalesce(backend_link_pct, 0), decimals: 1)), "% root spans with RUM link"))
-      )
-    | fields checks
-    | expand checks
-    | fields Check = checks[Check], Status = checks[Status], Evidence = checks[Evidence]
-  ]

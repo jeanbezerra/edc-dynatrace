@@ -1,19 +1,16 @@
-fetch user.events
-| filter isNotNull(dt.rum.session.id)
-| summarize {
-    Frontends = arrayRemoveNulls(collectDistinct(frontend.name)),
+fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| filter $frontend_upstream != "" and $frontend_target != ""
+| filter in(frontend.name, array($frontend_upstream, $frontend_target)) and isNotNull(dt.rum.session.id)
+| summarize
+    `Upstream events` = countIf(frontend.name == $frontend_upstream),
+    `Target events` = countIf(frontend.name == $frontend_target),
     `First event` = min(start_time),
     `Last event` = max(start_time),
     Events = count(),
-    hub_events = countIf(frontend.name == $frontend_hub),
-    application_events = countIf(frontend.name == $frontend_application)
-  }, by: {`Session ID` = dt.rum.session.id}
-| filter hub_events > 0 or application_events > 0
-| fieldsAdd
-    Classification = if(hub_events > 0 and application_events > 0 and arraySize(Frontends) > 2, "MULTI_FRONTEND",
-      else: if(hub_events > 0 and application_events > 0, "CONTINUOUS",
-      else: if(hub_events > 0, "HUB_ONLY", else: "APP_ONLY"))),
-    `Approx. duration` = `Last event` - `First event`
-| fields `Session ID`, `Frontends found` = toString(Frontends), Classification, `First event`, `Last event`, Events, `Approx. duration`
+    by: {`Session ID` = dt.rum.session.id}
+| fieldsAdd Classification = if(`Upstream events` > 0 and `Target events` > 0, "CONTINUOUS",
+    else: if(`Upstream events` > 0, "UPSTREAM_ONLY", else: "TARGET_ONLY"))
+| fieldsAdd `Observed duration` = `Last event` - `First event`
+| fields Classification, `Session ID`, `Upstream events`, `Target events`, Events, `First event`, `Last event`, `Observed duration`
 | sort `Last event` desc
 | limit 100

@@ -1,27 +1,106 @@
 # RUM Diagnostic Explorer
 
-Dashboard técnico para diagnosticar RUM Agentless em uma aplicação AngularJS acessada por um HUB, usando apenas dados disponíveis no Dynatrace.
+Dashboard técnico para comparar dois frontends web encadeados, independentemente da tecnologia ou do nome das aplicações:
+
+```text
+frontend_upstream -> navegação/redirecionamento -> frontend_target -> XHR/fetch -> backend
+```
+
+O cenário padrão considera que ambos já utilizaram RUM Agentless, mas a injeção do frontend superior foi desabilitada para evitar que ela sobrescreva ou capture a instrumentação da aplicação alvo.
 
 ## Artefatos
 
 - `rum-diagnostic-explorer.content.json`: importe pela interface do Dashboards.
-- `rum-diagnostic-explorer.document.json`: envelope de documento para `dtctl apply`.
-- `queries/*.dql`: uma cópia legível de cada consulta de tile.
-- `build-dashboard.ps1`: fonte determinística que regenera os dois JSONs e as consultas.
-- `validate-dashboard.ps1`: valida JSON, paridade entre formatos, layouts, variáveis e arquivos DQL.
-- `validate-dql.ps1`: executa todas as consultas em um tenant autenticado, substituindo as variáveis por valores reais.
+- `rum-diagnostic-explorer.document.json`: envelope para `dtctl apply`.
+- `queries/*.dql`: as oito consultas utilizadas pelos tiles.
+- `build-dashboard.ps1`: regenera os JSONs e remove consultas antigas que não pertencem mais ao dashboard.
+- `validate-dashboard.ps1`: valida estrutura, layout e limites de custo.
+- `validate-dql.ps1`: executa as consultas em um tenant autenticado depois de expandir as variáveis.
 
-Os artefatos importáveis usam somente caracteres ASCII nos textos do dashboard e nas DQLs. Isso evita caracteres corrompidos quando o importador ou o terminal interpreta UTF-8 com uma página de código legada.
+Os artefatos importáveis usam somente caracteres ASCII para evitar mojibake em terminais e importadores legados.
+
+## Proteções de custo
+
+O dashboard foi desenhado para falhar de forma controlada antes de executar uma investigação ampla por engano:
+
+- `analysis_window_minutes` aceita apenas `15`, `30` ou `60`; o padrão é 15 minutos.
+- Todos os `fetch user.events` e `fetch spans` possuem esse `from:` explícito. Um timeframe global maior não aumenta a janela lida pelos tiles.
+- Cada tile tem scan limit de 2 GB, no máximo 500 registros e 5 MB de resultado.
+- A quantidade de tiles de dados caiu de 22 para 8; o tile adicional consulta somente a topologia Smartscape.
+- As leituras máximas caíram de 20 scans de `user.events` e 5 de `spans` para 6 e 1, respectivamente.
+- O único scan de spans exige um `trace_id` exato; não há inventário amplo de servidores nem join entre `user.events` e `spans`.
+- O mapa de serviços consulta relações `calls` atuais do Smartscape, sem abrir outro scan de telemetria.
+- Os seletores de frontend são texto. Portanto, abrir o dashboard não dispara consultas adicionais só para preencher dropdowns.
+- Requests são agrupadas por `url.domain` e `url.path`, não por URL completa com query string.
+
+Essas proteções limitam o custo por execução, mas não tornam consultas repetidas gratuitas. Use 15 minutos primeiro e aumente somente quando o volume for insuficiente.
+
+## Variáveis
+
+| Variável | Uso |
+|---|---|
+| `analysis_window_minutes` | Janela fechada de 15, 30 ou 60 minutos. |
+| `frontend_upstream` | Nome exato do frontend que fica na frente da aplicação alvo. |
+| `frontend_target` | Nome exato do frontend que deve coletar RUM e replay. |
+| `upstream_rum_expected` | `DISABLED` no cenário recomendado; use `ENABLED` quando os dois frontends devem coletar. |
+| `upstream_url` | Fragmento estável de domínio ou caminho do frontend superior. |
+| `target_url` | Fragmento estável de domínio ou caminho da aplicação alvo. |
+| `session_id` | Drill-down opcional de uma sessão. |
+| `request_url` | Filtro opcional de domínio, caminho ou endpoint. |
+| `trace_id` | Trace ID específico copiado do tile de requests. |
+
+Os nomes de frontend são campos de texto para manter o dashboard agnóstico e evitar scans de catálogo. Copie o valor exato de `frontend.name` do Dynatrace.
+
+## Ordem de investigação
+
+1. Preencha os dois frontends e mantenha a janela em 15 minutos.
+2. Use `upstream_rum_expected = DISABLED` se o Agentless superior foi removido.
+3. Confira a matriz: nesse modo, qualquer evento recente do frontend superior é `CRITICAL`.
+4. Confira se existe exatamente um instrumentation ID no frontend alvo.
+5. Preencha as URLs e procure URL `TARGET` atribuída ao frontend superior.
+6. Abra uma session ID recente na timeline.
+7. Confira requests do frontend alvo e copie um `Sample trace ID`.
+8. Compare a tabela de serviços ligados aos dois frontends.
+9. Cole o valor em `trace_id` para mapear somente os servidores e processos observados naquele trace.
+
+## Interpretação do cenário Agentless
+
+Quando o RUM superior deveria estar desabilitado:
+
+| Evidência | Interpretação operacional |
+|---|---|
+| Zero eventos recentes no upstream e eventos no target | Estado esperado após a remoção da instrumentação superior. |
+| Eventos continuam chegando no upstream | A alteração não teve efeito completo dentro da janela observada. Investigue cache, páginas antigas abertas, outra origem de injeção e prioridade de regras. |
+| Mesmo instrumentation ID aparece nos dois frontends | Forte evidência de sobreposição ou atribuição inconsistente. |
+| URL alvo aparece no upstream | Forte evidência de mapping/detection incorreto ou agente superior ainda ativo. |
+| Mais de um instrumentation ID no target | Revisar múltiplas formas de injeção, configuração residual e regras concorrentes. |
+| Sessões `TARGET_ONLY` | Esperado quando o upstream não coleta mais RUM. |
+| Sessões `CONTINUOUS` com upstream desabilitado | Pode indicar clientes/páginas ainda executando a instrumentação superior. Não prova sozinho a origem. |
+
+Eventos dentro da janela podem ter sido produzidos antes de uma mudança recente ou por abas já abertas. Use `Last seen` e repita a análise após o tempo necessário para renovação das páginas.
+
+## Tiles
+
+| Tile | Finalidade |
+|---|---|
+| Agentless checks - Status - Evidence | Consolida o estado esperado, volume, IDs, mapping, requests e cobertura de trace em um scan. |
+| Instrumentation IDs across the frontend pair | Mostra IDs compartilhados entre os dois frontends. |
+| Configured URL ownership | Compara frontend esperado e observado para as URLs configuradas. |
+| Recent sessions across the frontend pair | Classifica até 100 sessões recentes. |
+| Timeline for one session | Reconstrói uma session ID específica. |
+| Requests emitted by the target frontend | Consolida chamadas, falhas, latência e exemplos de trace/session ID. |
+| Services linked to the selected web applications | Mapeia cada Frontend/Web Application selecionado aos serviços ligados por relações `calls` do Smartscape. |
+| Servers observed for the selected trace | Agrupa, por serviço, os hosts e process groups observados somente no trace selecionado. |
 
 ## Importação
 
-### Interface do Dashboards
+### Interface
 
-Importe `rum-diagnostic-explorer.content.json` em **Dashboards → Import dashboard**.
+Importe `rum-diagnostic-explorer.content.json` em **Dashboards -> Import dashboard**.
 
 ### dtctl
 
-Não aplique diretamente o arquivo versionado: em caso de sucesso, `dtctl apply` pode remover o arquivo de entrada. Use uma cópia temporária.
+Use uma cópia temporária, pois `dtctl apply` pode remover o arquivo de entrada após sucesso:
 
 ```powershell
 $deployFile = Join-Path ([System.IO.Path]::GetTempPath()) "rum-diagnostic-explorer.document.json"
@@ -30,148 +109,36 @@ dtctl apply -f $deployFile -o yaml --dry-run
 dtctl apply -f $deployFile -o yaml
 ```
 
-## Configuração inicial
-
-1. Selecione `frontend_hub` e `frontend_application`. Os dois seletores usam a mesma lista de `frontend.name`; troque o placeholder `(Select frontend)` e confirme que não ficaram com o mesmo valor.
-2. Informe `hub_url` e `application_url` com um fragmento estável, como domínio ou prefixo de caminho. Não use `*`.
-3. Comece com o timeframe global em 15 ou 30 minutos. Amplie para 1 hora quando o volume for insuficiente.
-4. Deixe `session_id` e `request_url` vazios e mantenha `service_name` em `(All services)` no primeiro diagnóstico.
-5. Para um drill-down, copie uma session ID ou fragmento de endpoint dos próprios resultados e selecione o serviço na lista.
-
-Todos os tiles herdam o timeframe global. Não há `from:`, `to:` ou `timeframe:` fixo nas DQLs. As consultas detalhadas têm `limit`, e cada tile possui scan limit padrão de 100 GB para evitar varreduras sem limite quando alguém ampliar demais a janela.
-
-## Variáveis
-
-| Variável | Tipo | Uso |
-|---|---|---|
-| `frontend_hub` | query, seleção única | Frontend Dynatrace do HUB. |
-| `frontend_application` | query, seleção única | Frontend Dynatrace do AngularJS. |
-| `hub_url` | texto | Fragmento da URL/domínio do HUB. Necessário para os checks de mapping. |
-| `application_url` | texto | Fragmento da URL/domínio AngularJS. Necessário para os checks de mapping. |
-| `session_id` | texto opcional | Ativa a timeline de uma sessão. |
-| `request_url` | texto opcional | Restringe requests RUM e spans por URL/rota/endpoint. |
-| `service_name` | query, seleção única | `(All services)` não filtra spans; um serviço específico habilita a topologia Smartscape de um hop. |
-
-## Ordem dos tiles
-
-| Seção | Tiles | Finalidade |
-|---|---|---|
-| 01 · Status geral | Eventos e continuidade; IDs e frontend desconhecido; Requests RUM | Confirmar se há sinal suficiente antes do drill-down. |
-| 02 · Frontend × instrumentation | Inventário por ID/agent; IDs compartilhados | Encontrar múltiplos IDs, sobreposição e frontend desconhecido. |
-| 03 · URL → frontend | Detalhe URL; mapping esperado; navegações/redirecionamentos | Responder qual frontend recebe a URL AngularJS. |
-| 04 · Sessões | Continuidade por session ID; distribuição | Ver sessões comuns sem declarar automaticamente “broken session”. |
-| 05 · Timeline | Timeline técnica | Reconstruir HUB → navegação → AngularJS → XHR. |
-| 06 · Requests frontend | Requests observadas; tendência | Inventariar chamadas reais, erros e cobertura de trace. |
-| 07 · Erros/lentidão | 4xx/5xx/status ausente; lentas | Priorizar endpoints com falha e cauda de latência. |
-| 08 · Frontend → backend | Cobertura; root spans; downstream | Localizar onde a correlação deixa de ser observada. |
-| 09 · Backend services | Serviços associados | Requests, falhas, percentis e chamadas downstream. |
-| 10 · Topologia | Smartscape calls de um hop | Visualização pequena e filtrada, sem reproduzir todo o Smartscape. |
-| 11 · Anomalias | Hipóteses diagnósticas | Reunir sinais de mapping, IDs, continuidade, ausência de RUM e trace. |
-| 12 · Matriz | Check / Status / Evidence | Consolidar o diagnóstico e orientar o próximo passo. |
-
-## Tiles essenciais para o diagnóstico inicial
-
-Leia primeiro, nesta ordem:
-
-1. **Mapeamento esperado × observado** — responde qual frontend recebe a URL AngularJS.
-2. **Frontend × instrumentation ID × agent** — conta IDs e evidencia sobreposição.
-3. **Continuidade por session ID** — mostra sessões comuns, HUB_ONLY e APP_ONLY.
-4. **Requests observadas no AngularJS** — confirma produção de XHR/fetch no RUM.
-5. **Cobertura de trace por request RUM** — verifica `trace.id` e hints de propagação.
-6. **Backend observado para o filtro** — verifica root spans e links RUM no backend.
-
-## Regras visuais e thresholds de triagem
-
-Os estados são calculados na própria DQL e aparecem como `Status` nas tabelas. São heurísticas operacionais, não regras de alerta nem confirmação de causa.
-
-| Check | OK | WARNING | CRITICAL |
-|---|---|---|---|
-| URL AngularJS no HUB | 0% | >0% e <50% | ≥50% |
-| Mapping para frontend esperado | ≥95% | <95% | O tile de mapping marca cada combinação inesperada como CRITICAL. |
-| Instrumentation IDs | exatamente 1 por frontend | >1 | — |
-| Continuidade | ≥5% do menor conjunto de sessões | <5%, havendo tráfego nos dois frontends | — |
-| Cobertura `trace.id` | ≥80% | 50–79,9% | <50% no tile de anomalias |
-| Request lenta | abaixo de 2 s | — | listada quando >2 s; compare com o SLA real |
-| Backend sem link RUM | há spans ligados | root spans existem, mas nenhum link RUM foi observado | — |
-
-`NO_DATA`, `NOT_CONFIGURED` e `INFO` são estados deliberados. `NO_STATUS_OBSERVED` não é sinônimo de timeout, cancelamento ou ausência de resposta.
-
-## Como interpretar por seção
-
-- **Status geral:** zero pode indicar timeframe curto, atraso de ingestão ou ausência real. Valide primeiro sem filtros de URL.
-- **Instrumentation:** mais de um ID exige revisar método de injeção e regras de frontend; ID compartilhado é evidência forte de sobreposição.
-- **URL mapping:** URL AngularJS no HUB indica detecção/configuração inesperada; confirme volume e instrumentation ID.
-- **Sessões:** `CONTINUOUS` observa o mesmo ID nos dois frontends. `HUB_ONLY`/`APP_ONLY` precisa de contexto de navegação, cookies e timing.
-- **Timeline:** use para comparar o fim dos eventos do HUB com o início do AngularJS e localizar a primeira request relevante.
-- **Requests:** valide se os endpoints esperados realmente aparecem e se os erros são de rede, 4xx ou 5xx.
-- **Correlação:** `trace.id` no RUM e link RUM em spans são sinais complementares. Para prova pontual, abra um trace ID específico no Distributed Tracing.
-- **Backend/topologia:** serviço com tráfego sem link RUM pode atender canais não-browser; não classifique isso automaticamente como perda de correlação.
-- **Matriz:** use a evidência para escolher o próximo drill-down, não para declarar causa raiz.
-
-## Campos validados e alternativas
-
-Os nomes principais seguem o Semantic Dictionary atual do New RUM Experience e o modelo de spans atual. Ainda assim, disponibilidade e conteúdo dependem da versão dos agentes, masking e configuração do tenant.
-
-| Campo principal | Alternativa ou tratamento |
-|---|---|
-| `dt.rum.instrumentation.id` | Se ausente em um tenant em transição, teste `dt.rum.application.id` apenas como fallback; ele é deprecated. |
-| `page.url.full`, `view.url.full` | Se mascarados, use `page.name`/`view.name` ou um fragmento preservado em domínio/caminho. |
-| `url.full` | Para agrupamento menos sensível, use `url.domain` + `url.path`. |
-| `user_action.custom_name` | O dashboard já cai para `user_action.type`, `interaction.type` ou instance ID. |
-| `request.is_root_span` | Em traces somente OpenTelemetry, teste `isNull(span.parent_id)` como fallback de root. |
-| `dt.service.name` | Se não enriquecido, use `getNodeName(dt.smartscape.service)`. |
-| `dt.rum.is_linking_candidate` em spans | O dashboard também considera `dt.rum.session.id`; no frontend, use `trace.id` e os request hints. |
-| Smartscape `calls` vazio | Use o tile **Service → downstream observado**, baseado em HTTP client spans. |
-| Cancelamento de request | Não há campo semântico genérico assumido. Use `characteristics.has_failed_request`, status HTTP, `performance.incomplete_reason` e evidência específica do tenant. |
-
 ## Validação
 
-Validação local, sem acesso a tenant:
+Validação local:
 
 ```powershell
 .\build-dashboard.ps1
 .\validate-dashboard.ps1
 ```
 
-Validação sintática e de execução no tenant (executa 3 queries de variável + 22 queries de tiles):
+Validação das oito DQLs no tenant:
 
 ```powershell
 .\validate-dql.ps1 `
-  -FrontendHub "HUB frontend" `
-  -FrontendApplication "Angular frontend" `
-  -HubUrl "hub.exemplo" `
-  -ApplicationUrl "app.exemplo" `
+  -AnalysisWindowMinutes "15" `
+  -FrontendUpstream "Portal frontend" `
+  -FrontendTarget "Target frontend" `
+  -UpstreamRumExpected "DISABLED" `
+  -UpstreamUrl "portal.example" `
+  -TargetUrl "app.example" `
   -RequestUrl "/api/" `
-  -ServiceName "Meu serviço"
+  -TraceId "<trace-id-opcional>"
 ```
 
-O script requer `dtctl` instalado, autenticado e com permissões de leitura de `user.events`, `spans` e Smartscape. Deixe os filtros textuais opcionais vazios e use `-ServiceName "(All services)"` para validar o comportamento sem drill-down de serviço.
+## Limitações
 
-## Limitações conhecidas
-
-- Não existe join amplo `user.events` ↔ `spans`: ele é caro e pouco confiável em tenants grandes. O dashboard usa cobertura de `trace.id`, hints, links RUM nos spans e lookup pontual por trace ID.
-- Percentis de spans descrevem a amostra observada; contagens usam multiplicidade de sampling/aggregation.
-- A lista de frontends depende de dados no timeframe global. Se vier vazia, amplie temporariamente a janela e confirme ingestão/permissões.
-- URL masking pode reduzir a precisão dos filtros textuais.
-- Tráfego backend sem RUM pode ser legítimo (batch, integrações, mobile, synthetic ou APIs externas).
-- O dashboard não substitui regras de detecção de frontend, configurações de CORS/Trace Context nem o Smartscape.
-
-## Regeneração
-
-Edite `build-dashboard.ps1` e execute:
-
-```powershell
-.\build-dashboard.ps1
-.\validate-dashboard.ps1
-```
-
-Os JSONs e os 22 arquivos `.dql` serão atualizados de forma determinística.
-
-## Referências oficiais
-
-- [User events · Semantic Dictionary](https://docs.dynatrace.com/docs/semantic-dictionary/model/rum/user-events)
-- [Request user events](https://docs.dynatrace.com/docs/semantic-dictionary/model/rum/user-events/requests)
-- [User sessions](https://docs.dynatrace.com/docs/semantic-dictionary/model/rum/user-sessions)
-- [Traces · Semantic Dictionary](https://docs.dynatrace.com/docs/semantic-dictionary/model/trace)
-- [Estrutura de documentos de dashboard](https://docs.dynatrace.com/docs/analyze-explore-automate/dashboards-and-notebooks/document-api/document-structure-dashboards)
-- [Dynatrace Query Language](https://docs.dynatrace.com/docs/platform/grail/dynatrace-query-language)
+- O dashboard mostra evidências do Dynatrace; não prova qual componente HTML, proxy ou regra realizou a injeção.
+- `dt.rum.instrumentation.id` e `dt.rum.agent.type` dependem da disponibilidade dos campos no tenant.
+- URL mascarada pode exigir fragmentos preservados ou comparação por `page.name`/`view.name`.
+- Ausência de `trace.id` é `Correlation not observed`; não prova que o backend não processou a request.
+- A consulta de spans usa `toUid($trace_id)` e exige que o trace esteja dentro da janela selecionada.
+- Frontends não possuem servidor de execução próprio no modelo RUM Agentless. A tabela de servidores mostra hosts backend observados no trace, relacionados aos serviços pelos quais a request passou.
+- A relação Frontend/Web Application -> serviço depende da presença e da direção de arestas `calls` no Smartscape do tenant. Nomes duplicados permanecem distinguíveis pelos IDs exibidos.
+- Se o scan limit de 2 GB for atingido, reduza a janela ou refine URL/request. Não aumente o limite como primeira ação.
