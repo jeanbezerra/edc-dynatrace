@@ -1,5 +1,4 @@
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target)) and isNotNull(dt.rum.session.id)
 | summarize
     `Upstream events` = countIf(frontend.name == $frontend_upstream),

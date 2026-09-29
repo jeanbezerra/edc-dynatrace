@@ -152,13 +152,12 @@ Checks whether the upstream frontend is still collecting, whether the target is 
 
 Add-DataTile -Id "diagnostic_matrix" -Title "Agentless checks - Status - Evidence" -Description "One bounded user.events scan consolidates the core checks for the selected frontend pair." -Visualization "table" -X 0 -Y 11 -Width 24 -Height 10 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
     or (isNull(frontend.name) and (
-        ($upstream_url != "" and contains(observed_url, $upstream_url:triplequote, false))
-        or ($target_url != "" and contains(observed_url, $target_url:triplequote, false))))
+        (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, false))
+        or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false))))
 | summarize {
     upstream_events = countIf(frontend.name == $frontend_upstream),
     target_events = countIf(frontend.name == $frontend_target),
@@ -167,9 +166,9 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
     target_last_seen = max(if(frontend.name == $frontend_target, start_time)),
     upstream_id_count = countDistinctExact(if(frontend.name == $frontend_upstream, dt.rum.instrumentation.id)),
     target_id_count = countDistinctExact(if(frontend.name == $frontend_target, dt.rum.instrumentation.id)),
-    target_url_events = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false)),
-    target_url_in_upstream = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_upstream),
-    target_url_in_target = countIf($target_url != "" and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_target),
+    target_url_events = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false)),
+    target_url_in_upstream = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_upstream),
+    target_url_in_target = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_target),
     target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request),
     traced_target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request and isNotNull(trace.id))
   }
@@ -189,7 +188,7 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
         Evidence = concat(toString(target_events), " events; last=", coalesce(toString(target_last_seen), "none"))),
     record(
         Check = "Target URL assigned to target frontend",
-        Status = if($target_url == "", "NOT_CONFIGURED",
+        Status = if(stringLength($target_url) == 0, "NOT_CONFIGURED",
             else: if(target_url_events == 0, "WARNING",
             else: if(target_url_in_upstream > 0, "CRITICAL",
             else: if(target_url_in_target > 0, "OK", else: "WARNING")))),
@@ -231,7 +230,6 @@ The same instrumentation ID across both frontends or target URLs recorded under 
 
 Add-DataTile -Id "instrumentation_overlap" -Title "Instrumentation IDs across the frontend pair" -Description "CRITICAL means the same instrumentation ID was observed under more than one selected frontend." -Visualization "table" -X 0 -Y 23 -Width 12 -Height 9 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
 | filter isNotNull(dt.rum.instrumentation.id)
 | summarize
@@ -250,14 +248,13 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 
 Add-DataTile -Id "url_ownership" -Title "Configured URL ownership" -Description "Groups by configured URL scope instead of full URLs to control cardinality and expose cross-mapping." -Visualization "table" -X 12 -Y 23 -Width 12 -Height 9 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
 | filter isNotNull(observed_url)
-    and (($upstream_url != "" and contains(observed_url, $upstream_url:triplequote, false))
-      or ($target_url != "" and contains(observed_url, $target_url:triplequote, false)))
+    and ((stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, false))
+      or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false)))
 | fieldsAdd
-    `URL scope` = if($target_url != "" and contains(observed_url, $target_url:triplequote, false), "TARGET", else: "UPSTREAM"),
+    `URL scope` = if(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false), "TARGET", else: "UPSTREAM"),
     `Observed frontend` = coalesce(frontend.name, "(unknown)")
 | fieldsAdd `Expected frontend` = if(`URL scope` == "TARGET", $frontend_target, else: $frontend_upstream)
 | summarize
@@ -280,7 +277,6 @@ Continuity is evidence, not proof of correctness. The comparison is bounded to a
 
 Add-DataTile -Id "session_continuity" -Title "Recent sessions across the frontend pair" -Description "Shows up to 100 recent session IDs and classifies their observed presence across upstream and target." -Visualization "table" -X 0 -Y 34 -Width 12 -Height 10 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target)) and isNotNull(dt.rum.session.id)
 | summarize
     `Upstream events` = countIf(frontend.name == $frontend_upstream),
@@ -299,7 +295,7 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 
 Add-DataTile -Id "session_timeline" -Title "Timeline for one session" -Description "No useful scan is intended until session_id is filled; results are limited to 300 events." -Visualization "table" -X 12 -Y 34 -Width 12 -Height 10 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $session_id != "" and dt.rum.session.id == $session_id
+| filter dt.rum.session.id == $session_id
 | fieldsAdd `Event type` = if(characteristics.is_invalid, "INVALID",
     else: if(characteristics.has_error, "ERROR",
     else: if(characteristics.has_page_summary, "PAGE_SUMMARY",
@@ -331,9 +327,9 @@ Requests are grouped by domain and path, not full URL, to avoid query-string car
 
 Add-DataTile -Id "target_requests" -Title "Requests emitted by the target frontend" -Description "Combines volume, failures, latency, sessions, and trace coverage in one bounded scan." -Visualization "table" -X 0 -Y 46 -Width 24 -Height 10 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_target != "" and frontend.name == $frontend_target and characteristics.has_request
+| filter frontend.name == $frontend_target and characteristics.has_request
 | fieldsAdd request_target = coalesce(url.full, url.path, "")
-| filter $request_url == "" or contains(request_target, $request_url:triplequote, false)
+| filter contains(request_target, $request_url:triplequote, false)
 | summarize
     Calls = count(),
     Failures = countIf(characteristics.has_failed_request),
@@ -358,7 +354,6 @@ The left table uses current Smartscape `calls` relationships for either FRONTEND
 
 Add-DataTile -Id "frontend_services" -Title "Services linked to the selected web applications" -Description "Current Smartscape calls relationships. Source type and entity IDs keep the mapping explicit when names are duplicated." -Visualization "table" -X 0 -Y 58 -Width 12 -Height 10 -Query @'
 smartscapeEdges "calls"
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter target_type == "SERVICE"
 | fieldsAdd
     `Frontend / Web application` = getNodeName(source_id),
@@ -381,7 +376,7 @@ smartscapeEdges "calls"
 
 Add-DataTile -Id "frontend_servers" -Title "Servers observed for the selected trace" -Description "Exact trace lookup grouped by service, host, and process group. This preserves the single bounded spans scan." -Visualization "table" -X 12 -Y 58 -Width 12 -Height 10 -Query @'
 fetch spans, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $trace_id != "" and trace.id == toUid($trace_id)
+| filter trace.id == toUid($trace_id)
 | filter isNotNull(dt.smartscape.host)
 | summarize
     `Observed spans` = count(),

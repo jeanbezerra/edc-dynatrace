@@ -1,5 +1,4 @@
 smartscapeEdges "calls"
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter target_type == "SERVICE"
 | fieldsAdd
     `Frontend / Web application` = getNodeName(source_id),

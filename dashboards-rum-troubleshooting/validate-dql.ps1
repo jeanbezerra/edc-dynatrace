@@ -72,6 +72,10 @@ foreach ($variable in @($document.content.variables | Where-Object { $_.type -eq
         $failures.Add("variable:$($variable.key)`nUnexpanded dashboard variable remains in query.")
         continue
     }
+    if ($expandedVariableQuery -match '""\s*(?:==|!=)\s*""') {
+        $failures.Add("variable:$($variable.key)`nVariable expansion created a constant empty-string comparison.")
+        continue
+    }
 
     $output = & dtctl query $expandedVariableQuery --plain 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -87,6 +91,10 @@ foreach ($tileProperty in @($document.content.tiles.psobject.Properties | Where-
     $expandedQuery = Expand-DashboardVariables $tileProperty.Value.query
     if ($expandedQuery -match '\$(analysis_window_minutes|frontend_upstream|frontend_target|upstream_rum_expected|upstream_url|target_url|session_id|request_url|trace_id)(?::\w+)?') {
         $failures.Add("tile:$($tileProperty.Name)`nUnexpanded dashboard variable remains in query.")
+        continue
+    }
+    if ($expandedQuery -match '""\s*(?:==|!=)\s*""') {
+        $failures.Add("tile:$($tileProperty.Name)`nVariable expansion created a constant empty-string comparison.")
         continue
     }
 

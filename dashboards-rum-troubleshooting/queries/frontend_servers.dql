@@ -1,5 +1,5 @@
 fetch spans, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $trace_id != "" and trace.id == toUid($trace_id)
+| filter trace.id == toUid($trace_id)
 | filter isNotNull(dt.smartscape.host)
 | summarize
     `Observed spans` = count(),

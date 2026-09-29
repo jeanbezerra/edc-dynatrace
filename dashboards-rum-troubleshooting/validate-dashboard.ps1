@@ -106,6 +106,11 @@ foreach ($property in $dataTiles) {
         $tile.query -notmatch 'trace\.id\s*==\s*toUid\(\$trace_id\)') {
         Add-ValidationError "Tile '$($property.Name)' scans spans without an exact trace_id lookup."
     }
+
+    if ($tile.query -match '\$(?:frontend_upstream|frontend_target|upstream_url|target_url|session_id|request_url|trace_id)\s*(?:==|!=)\s*""' -or
+        $tile.query -match '""\s*(?:==|!=)\s*\$(?:frontend_upstream|frontend_target|upstream_url|target_url|session_id|request_url|trace_id)') {
+        Add-ValidationError "Tile '$($property.Name)' compares a dashboard variable directly with an empty string; variable expansion can create an always-true or always-false expression."
+    }
 }
 
 foreach ($property in $markdownTiles) {

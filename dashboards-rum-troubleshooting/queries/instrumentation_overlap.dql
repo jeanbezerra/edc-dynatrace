@@ -1,5 +1,4 @@
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter $frontend_upstream != "" and $frontend_target != ""
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
 | filter isNotNull(dt.rum.instrumentation.id)
 | summarize
