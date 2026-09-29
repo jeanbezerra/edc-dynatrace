@@ -1,0 +1,13 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_target
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward
+| dedup id
+| fields
+    `Process ID` = id,
+    `Process name` = name,
+    `Process Group ID` = dt.process_group.id,
+    `Process Group name` = dt.process_group.detected_name,
+    `Classic process ID` = id_classic
+| sort `Process Group name` asc, `Process name` asc, `Process ID` asc
+| limit 200

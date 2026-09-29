@@ -1,0 +1,389 @@
+{
+    "name":  "RUM Application Topology Comparison - build 2026-09-28-r1",
+    "type":  "dashboard",
+    "content":  {
+                    "version":  21,
+                    "variables":  [
+                                      {
+                                          "version":  2,
+                                          "key":  "frontend_upstream",
+                                          "type":  "query",
+                                          "visible":  true,
+                                          "editable":  true,
+                                          "input":  "smartscapeNodes \"FRONTEND\"\n| filter isNotNull(name) and name != \"\"\n| dedup name\n| fields value = name\n| sort value asc\n| limit 500",
+                                          "multiple":  false
+                                      },
+                                      {
+                                          "version":  2,
+                                          "key":  "frontend_target",
+                                          "type":  "query",
+                                          "visible":  true,
+                                          "editable":  true,
+                                          "input":  "smartscapeNodes \"FRONTEND\"\n| filter isNotNull(name) and name != \"\" and name != $frontend_upstream\n| dedup name\n| fields value = name\n| sort value asc\n| limit 500",
+                                          "multiple":  false
+                                      }
+                                  ],
+                    "tiles":  {
+                                  "intro":  {
+                                                "type":  "markdown",
+                                                "content":  "# RUM Application Topology Comparison\n\n**Build: 2026-09-28-r1 - topology only**\n\nRead each layer from left to right: **UPSTREAM** on the left and **TARGET** on the right. The dashboard uses the current Smartscape catalog only; it does not scan user events, spans, logs, or metrics.\n\nPath used for both sides: `FRONTEND -\u003e SERVICE -\u003e PROCESS`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail."
+                                            },
+                                  "section_configuration":  {
+                                                                "type":  "markdown",
+                                                                "content":  "## 01 - FRONTEND CONFIGURATION\n\nCurrent RUM configuration and catalog lifecycle for each selected frontend."
+                                                            },
+                                  "upstream_configuration":  {
+                                                                 "type":  "data",
+                                                                 "title":  "UPSTREAM - Frontend configuration",
+                                                                 "description":  "Current Smartscape configuration for the selected upstream frontend.",
+                                                                 "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_upstream\n| fields\n    `Frontend ID` = id,\n    `Frontend name` = name,\n    `Frontend type` = frontend.type,\n    `RUM enabled` = dt.rum.instrumentation.rum.enabled,\n    `Instrumentation ID` = dt.rum.instrumentation.id,\n    `Deleted at` = frontend.deletion_time,\n    `First observed` = getStart(lifetime),\n    `Last observed` = getEnd(lifetime)\n| sort `Frontend name` asc, `Frontend ID` asc\n| limit 20",
+                                                                 "visualization":  "table",
+                                                                 "visualizationSettings":  {
+                                                                                               "autoSelectVisualization":  false,
+                                                                                               "table":  {
+                                                                                                             "rowDensity":  "condensed",
+                                                                                                             "columnWidthStrategy":  "content",
+                                                                                                             "enableSparklines":  false,
+                                                                                                             "linewrapEnabled":  true
+                                                                                                         }
+                                                                                           },
+                                                                 "querySettings":  {
+                                                                                       "maxResultRecords":  500,
+                                                                                       "defaultScanLimitGbytes":  1,
+                                                                                       "maxResultMegaBytes":  5,
+                                                                                       "defaultSamplingRatio":  1,
+                                                                                       "enableSampling":  false
+                                                                                   }
+                                                             },
+                                  "target_configuration":  {
+                                                               "type":  "data",
+                                                               "title":  "TARGET - Frontend configuration",
+                                                               "description":  "Current Smartscape configuration for the selected target frontend.",
+                                                               "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_target\n| fields\n    `Frontend ID` = id,\n    `Frontend name` = name,\n    `Frontend type` = frontend.type,\n    `RUM enabled` = dt.rum.instrumentation.rum.enabled,\n    `Instrumentation ID` = dt.rum.instrumentation.id,\n    `Deleted at` = frontend.deletion_time,\n    `First observed` = getStart(lifetime),\n    `Last observed` = getEnd(lifetime)\n| sort `Frontend name` asc, `Frontend ID` asc\n| limit 20",
+                                                               "visualization":  "table",
+                                                               "visualizationSettings":  {
+                                                                                             "autoSelectVisualization":  false,
+                                                                                             "table":  {
+                                                                                                           "rowDensity":  "condensed",
+                                                                                                           "columnWidthStrategy":  "content",
+                                                                                                           "enableSparklines":  false,
+                                                                                                           "linewrapEnabled":  true
+                                                                                                       }
+                                                                                         },
+                                                               "querySettings":  {
+                                                                                     "maxResultRecords":  500,
+                                                                                     "defaultScanLimitGbytes":  1,
+                                                                                     "maxResultMegaBytes":  5,
+                                                                                     "defaultSamplingRatio":  1,
+                                                                                     "enableSampling":  false
+                                                                                 }
+                                                           },
+                                  "section_applications":  {
+                                                               "type":  "markdown",
+                                                               "content":  "## 02 - APPLICATIONS / FRONTENDS\n\nThe selected Web Application is represented by a `FRONTEND` node. Both Smartscape and Classic IDs are shown when available."
+                                                           },
+                                  "upstream_applications":  {
+                                                                "type":  "data",
+                                                                "title":  "UPSTREAM - Applications",
+                                                                "description":  "Frontend/Web Application identity selected as upstream.",
+                                                                "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_upstream\n| fields\n    `Application ID` = id,\n    `Application name` = name,\n    `Classic application ID` = id_classic,\n    `Entity type` = type\n| sort `Application name` asc, `Application ID` asc\n| limit 20",
+                                                                "visualization":  "table",
+                                                                "visualizationSettings":  {
+                                                                                              "autoSelectVisualization":  false,
+                                                                                              "table":  {
+                                                                                                            "rowDensity":  "condensed",
+                                                                                                            "columnWidthStrategy":  "content",
+                                                                                                            "enableSparklines":  false,
+                                                                                                            "linewrapEnabled":  true
+                                                                                                        }
+                                                                                          },
+                                                                "querySettings":  {
+                                                                                      "maxResultRecords":  500,
+                                                                                      "defaultScanLimitGbytes":  1,
+                                                                                      "maxResultMegaBytes":  5,
+                                                                                      "defaultSamplingRatio":  1,
+                                                                                      "enableSampling":  false
+                                                                                  }
+                                                            },
+                                  "target_applications":  {
+                                                              "type":  "data",
+                                                              "title":  "TARGET - Applications",
+                                                              "description":  "Frontend/Web Application identity selected as target.",
+                                                              "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_target\n| fields\n    `Application ID` = id,\n    `Application name` = name,\n    `Classic application ID` = id_classic,\n    `Entity type` = type\n| sort `Application name` asc, `Application ID` asc\n| limit 20",
+                                                              "visualization":  "table",
+                                                              "visualizationSettings":  {
+                                                                                            "autoSelectVisualization":  false,
+                                                                                            "table":  {
+                                                                                                          "rowDensity":  "condensed",
+                                                                                                          "columnWidthStrategy":  "content",
+                                                                                                          "enableSparklines":  false,
+                                                                                                          "linewrapEnabled":  true
+                                                                                                      }
+                                                                                        },
+                                                              "querySettings":  {
+                                                                                    "maxResultRecords":  500,
+                                                                                    "defaultScanLimitGbytes":  1,
+                                                                                    "maxResultMegaBytes":  5,
+                                                                                    "defaultSamplingRatio":  1,
+                                                                                    "enableSampling":  false
+                                                                                }
+                                                          },
+                                  "section_process_groups":  {
+                                                                 "type":  "markdown",
+                                                                 "content":  "## 03 - PROCESS GROUPS\n\nProcess Group is a compatibility grouping derived from processes. The table keeps the Dynatrace Process Group ID and detected name visible for human reading."
+                                                             },
+                                  "upstream_process_groups":  {
+                                                                  "type":  "data",
+                                                                  "title":  "UPSTREAM - Process groups",
+                                                                  "description":  "Process groups behind services called by the upstream frontend.",
+                                                                  "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_upstream\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward\n| filter isNotNull(dt.process_group.id) or isNotNull(dt.process_group.detected_name)\n| dedup dt.process_group.id, dt.process_group.detected_name\n| fields\n    `Process Group ID` = dt.process_group.id,\n    `Process Group name` = dt.process_group.detected_name\n| sort `Process Group name` asc, `Process Group ID` asc\n| limit 100",
+                                                                  "visualization":  "table",
+                                                                  "visualizationSettings":  {
+                                                                                                "autoSelectVisualization":  false,
+                                                                                                "table":  {
+                                                                                                              "rowDensity":  "condensed",
+                                                                                                              "columnWidthStrategy":  "content",
+                                                                                                              "enableSparklines":  false,
+                                                                                                              "linewrapEnabled":  true
+                                                                                                          }
+                                                                                            },
+                                                                  "querySettings":  {
+                                                                                        "maxResultRecords":  500,
+                                                                                        "defaultScanLimitGbytes":  1,
+                                                                                        "maxResultMegaBytes":  5,
+                                                                                        "defaultSamplingRatio":  1,
+                                                                                        "enableSampling":  false
+                                                                                    }
+                                                              },
+                                  "target_process_groups":  {
+                                                                "type":  "data",
+                                                                "title":  "TARGET - Process groups",
+                                                                "description":  "Process groups behind services called by the target frontend.",
+                                                                "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_target\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward\n| filter isNotNull(dt.process_group.id) or isNotNull(dt.process_group.detected_name)\n| dedup dt.process_group.id, dt.process_group.detected_name\n| fields\n    `Process Group ID` = dt.process_group.id,\n    `Process Group name` = dt.process_group.detected_name\n| sort `Process Group name` asc, `Process Group ID` asc\n| limit 100",
+                                                                "visualization":  "table",
+                                                                "visualizationSettings":  {
+                                                                                              "autoSelectVisualization":  false,
+                                                                                              "table":  {
+                                                                                                            "rowDensity":  "condensed",
+                                                                                                            "columnWidthStrategy":  "content",
+                                                                                                            "enableSparklines":  false,
+                                                                                                            "linewrapEnabled":  true
+                                                                                                        }
+                                                                                          },
+                                                                "querySettings":  {
+                                                                                      "maxResultRecords":  500,
+                                                                                      "defaultScanLimitGbytes":  1,
+                                                                                      "maxResultMegaBytes":  5,
+                                                                                      "defaultSamplingRatio":  1,
+                                                                                      "enableSampling":  false
+                                                                                  }
+                                                            },
+                                  "section_processes":  {
+                                                            "type":  "markdown",
+                                                            "content":  "## 04 - PROCESSES\n\nSmartscape `PROCESS` nodes on which the directly called services run. The Process Group columns preserve the grouping context."
+                                                        },
+                                  "upstream_processes":  {
+                                                             "type":  "data",
+                                                             "title":  "UPSTREAM - Processes",
+                                                             "description":  "Processes supporting services called by the upstream frontend.",
+                                                             "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_upstream\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward\n| dedup id\n| fields\n    `Process ID` = id,\n    `Process name` = name,\n    `Process Group ID` = dt.process_group.id,\n    `Process Group name` = dt.process_group.detected_name,\n    `Classic process ID` = id_classic\n| sort `Process Group name` asc, `Process name` asc, `Process ID` asc\n| limit 200",
+                                                             "visualization":  "table",
+                                                             "visualizationSettings":  {
+                                                                                           "autoSelectVisualization":  false,
+                                                                                           "table":  {
+                                                                                                         "rowDensity":  "condensed",
+                                                                                                         "columnWidthStrategy":  "content",
+                                                                                                         "enableSparklines":  false,
+                                                                                                         "linewrapEnabled":  true
+                                                                                                     }
+                                                                                       },
+                                                             "querySettings":  {
+                                                                                   "maxResultRecords":  500,
+                                                                                   "defaultScanLimitGbytes":  1,
+                                                                                   "maxResultMegaBytes":  5,
+                                                                                   "defaultSamplingRatio":  1,
+                                                                                   "enableSampling":  false
+                                                                               }
+                                                         },
+                                  "target_processes":  {
+                                                           "type":  "data",
+                                                           "title":  "TARGET - Processes",
+                                                           "description":  "Processes supporting services called by the target frontend.",
+                                                           "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_target\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward\n| dedup id\n| fields\n    `Process ID` = id,\n    `Process name` = name,\n    `Process Group ID` = dt.process_group.id,\n    `Process Group name` = dt.process_group.detected_name,\n    `Classic process ID` = id_classic\n| sort `Process Group name` asc, `Process name` asc, `Process ID` asc\n| limit 200",
+                                                           "visualization":  "table",
+                                                           "visualizationSettings":  {
+                                                                                         "autoSelectVisualization":  false,
+                                                                                         "table":  {
+                                                                                                       "rowDensity":  "condensed",
+                                                                                                       "columnWidthStrategy":  "content",
+                                                                                                       "enableSparklines":  false,
+                                                                                                       "linewrapEnabled":  true
+                                                                                                   }
+                                                                                     },
+                                                           "querySettings":  {
+                                                                                 "maxResultRecords":  500,
+                                                                                 "defaultScanLimitGbytes":  1,
+                                                                                 "maxResultMegaBytes":  5,
+                                                                                 "defaultSamplingRatio":  1,
+                                                                                 "enableSampling":  false
+                                                                             }
+                                                       },
+                                  "section_services":  {
+                                                           "type":  "markdown",
+                                                           "content":  "## 05 - SERVICES\n\nServices directly linked to each frontend by the stable Smartscape `calls` relationship."
+                                                       },
+                                  "upstream_services":  {
+                                                            "type":  "data",
+                                                            "title":  "UPSTREAM - Services",
+                                                            "description":  "Services directly called by the upstream frontend.",
+                                                            "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_upstream\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| dedup id\n| fields\n    `Service ID` = id,\n    `Service name` = name,\n    `Classic service ID` = id_classic,\n    `Detection version` = dt.service_detection.version,\n    `Service type` = dt.service.sdv1_type\n| sort `Service name` asc, `Service ID` asc\n| limit 200",
+                                                            "visualization":  "table",
+                                                            "visualizationSettings":  {
+                                                                                          "autoSelectVisualization":  false,
+                                                                                          "table":  {
+                                                                                                        "rowDensity":  "condensed",
+                                                                                                        "columnWidthStrategy":  "content",
+                                                                                                        "enableSparklines":  false,
+                                                                                                        "linewrapEnabled":  true
+                                                                                                    }
+                                                                                      },
+                                                            "querySettings":  {
+                                                                                  "maxResultRecords":  500,
+                                                                                  "defaultScanLimitGbytes":  1,
+                                                                                  "maxResultMegaBytes":  5,
+                                                                                  "defaultSamplingRatio":  1,
+                                                                                  "enableSampling":  false
+                                                                              }
+                                                        },
+                                  "target_services":  {
+                                                          "type":  "data",
+                                                          "title":  "TARGET - Services",
+                                                          "description":  "Services directly called by the target frontend.",
+                                                          "query":  "smartscapeNodes \"FRONTEND\"\n| filter name == $frontend_target\n| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward\n| dedup id\n| fields\n    `Service ID` = id,\n    `Service name` = name,\n    `Classic service ID` = id_classic,\n    `Detection version` = dt.service_detection.version,\n    `Service type` = dt.service.sdv1_type\n| sort `Service name` asc, `Service ID` asc\n| limit 200",
+                                                          "visualization":  "table",
+                                                          "visualizationSettings":  {
+                                                                                        "autoSelectVisualization":  false,
+                                                                                        "table":  {
+                                                                                                      "rowDensity":  "condensed",
+                                                                                                      "columnWidthStrategy":  "content",
+                                                                                                      "enableSparklines":  false,
+                                                                                                      "linewrapEnabled":  true
+                                                                                                  }
+                                                                                    },
+                                                          "querySettings":  {
+                                                                                "maxResultRecords":  500,
+                                                                                "defaultScanLimitGbytes":  1,
+                                                                                "maxResultMegaBytes":  5,
+                                                                                "defaultSamplingRatio":  1,
+                                                                                "enableSampling":  false
+                                                                            }
+                                                      }
+                              },
+                    "layouts":  {
+                                    "intro":  {
+                                                  "x":  0,
+                                                  "y":  0,
+                                                  "w":  24,
+                                                  "h":  5
+                                              },
+                                    "section_configuration":  {
+                                                                  "x":  0,
+                                                                  "y":  5,
+                                                                  "w":  24,
+                                                                  "h":  2
+                                                              },
+                                    "upstream_configuration":  {
+                                                                   "x":  0,
+                                                                   "y":  7,
+                                                                   "w":  12,
+                                                                   "h":  9
+                                                               },
+                                    "target_configuration":  {
+                                                                 "x":  12,
+                                                                 "y":  7,
+                                                                 "w":  12,
+                                                                 "h":  9
+                                                             },
+                                    "section_applications":  {
+                                                                 "x":  0,
+                                                                 "y":  16,
+                                                                 "w":  24,
+                                                                 "h":  2
+                                                             },
+                                    "upstream_applications":  {
+                                                                  "x":  0,
+                                                                  "y":  18,
+                                                                  "w":  12,
+                                                                  "h":  7
+                                                              },
+                                    "target_applications":  {
+                                                                "x":  12,
+                                                                "y":  18,
+                                                                "w":  12,
+                                                                "h":  7
+                                                            },
+                                    "section_process_groups":  {
+                                                                   "x":  0,
+                                                                   "y":  25,
+                                                                   "w":  24,
+                                                                   "h":  2
+                                                               },
+                                    "upstream_process_groups":  {
+                                                                    "x":  0,
+                                                                    "y":  27,
+                                                                    "w":  12,
+                                                                    "h":  9
+                                                                },
+                                    "target_process_groups":  {
+                                                                  "x":  12,
+                                                                  "y":  27,
+                                                                  "w":  12,
+                                                                  "h":  9
+                                                              },
+                                    "section_processes":  {
+                                                              "x":  0,
+                                                              "y":  36,
+                                                              "w":  24,
+                                                              "h":  2
+                                                          },
+                                    "upstream_processes":  {
+                                                               "x":  0,
+                                                               "y":  38,
+                                                               "w":  12,
+                                                               "h":  11
+                                                           },
+                                    "target_processes":  {
+                                                             "x":  12,
+                                                             "y":  38,
+                                                             "w":  12,
+                                                             "h":  11
+                                                         },
+                                    "section_services":  {
+                                                             "x":  0,
+                                                             "y":  49,
+                                                             "w":  24,
+                                                             "h":  2
+                                                         },
+                                    "upstream_services":  {
+                                                              "x":  0,
+                                                              "y":  51,
+                                                              "w":  12,
+                                                              "h":  11
+                                                          },
+                                    "target_services":  {
+                                                            "x":  12,
+                                                            "y":  51,
+                                                            "w":  12,
+                                                            "h":  11
+                                                        }
+                                },
+                    "settings":  {
+                                     "gridLayout":  {
+                                                        "columnsCount":  24
+                                                    }
+                                 },
+                    "annotations":  [
+
+                                    ]
+                }
+}

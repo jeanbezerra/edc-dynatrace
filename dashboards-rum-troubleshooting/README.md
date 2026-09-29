@@ -1,5 +1,31 @@
 # RUM Diagnostic Explorer
 
+## Dashboard adicional: RUM Application Topology Comparison
+
+Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em cinco camadas: configuracao, Applications/Frontends, Process Groups, Processes e Services.
+
+- `rum-topology-comparison-build-20260928-r1.content.json`: arquivo recomendado para importacao pela interface.
+- `rum-topology-comparison-build-20260928-r1.document.json`: envelope versionado para `dtctl apply`.
+- `rum-topology-comparison.content.json` e `rum-topology-comparison.document.json`: aliases sem versao.
+- `topology-queries/*.dql`: dez consultas Smartscape, uma para cada tabela UPSTREAM/TARGET.
+- `build-topology-dashboard.ps1`: gera o dashboard adicional.
+- `validate-topology-dashboard.ps1`: valida estrutura, simetria, layout, fontes e limites.
+- `validate-topology-dql.ps1`: expande as variaveis e valida as doze DQLs; com `-RunTenant`, executa no tenant via `dtctl`.
+
+Importe `rum-topology-comparison-build-20260928-r1.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r1 - topology only`.
+
+O dashboard usa somente `smartscapeNodes` e `traverse`; nao executa scans de eventos, spans, logs ou metricas. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
+
+```powershell
+.\build-topology-dashboard.ps1
+.\validate-topology-dashboard.ps1
+.\validate-topology-dql.ps1 `
+  -FrontendUpstream "Portal frontend" `
+  -FrontendTarget "Target frontend"
+```
+
+Acrescente `-RunTenant` ao ultimo comando para executar as consultas em um tenant autenticado.
+
 Dashboard técnico para comparar dois frontends web encadeados, independentemente da tecnologia ou do nome das aplicações:
 
 ```text

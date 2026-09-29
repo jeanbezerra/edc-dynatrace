@@ -1,0 +1,11 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_target
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward
+| filter isNotNull(dt.process_group.id) or isNotNull(dt.process_group.detected_name)
+| dedup dt.process_group.id, dt.process_group.detected_name
+| fields
+    `Process Group ID` = dt.process_group.id,
+    `Process Group name` = dt.process_group.detected_name
+| sort `Process Group name` asc, `Process Group ID` asc
+| limit 100

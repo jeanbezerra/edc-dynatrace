@@ -1,0 +1,12 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_target
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| dedup id
+| fields
+    `Service ID` = id,
+    `Service name` = name,
+    `Classic service ID` = id_classic,
+    `Detection version` = dt.service_detection.version,
+    `Service type` = dt.service.sdv1_type
+| sort `Service name` asc, `Service ID` asc
+| limit 200

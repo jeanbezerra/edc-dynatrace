@@ -1,0 +1,13 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_upstream
+| fields
+    `Frontend ID` = id,
+    `Frontend name` = name,
+    `Frontend type` = frontend.type,
+    `RUM enabled` = dt.rum.instrumentation.rum.enabled,
+    `Instrumentation ID` = dt.rum.instrumentation.id,
+    `Deleted at` = frontend.deletion_time,
+    `First observed` = getStart(lifetime),
+    `Last observed` = getEnd(lifetime)
+| sort `Frontend name` asc, `Frontend ID` asc
+| limit 20

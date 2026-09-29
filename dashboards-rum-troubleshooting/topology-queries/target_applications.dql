@@ -1,0 +1,9 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_target
+| fields
+    `Application ID` = id,
+    `Application name` = name,
+    `Classic application ID` = id_classic,
+    `Entity type` = type
+| sort `Application name` asc, `Application ID` asc
+| limit 20
