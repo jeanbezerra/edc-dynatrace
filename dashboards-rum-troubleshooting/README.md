@@ -2,23 +2,23 @@
 
 ## Dashboard adicional: RUM Application Topology Comparison
 
-Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em sete camadas: configuracao, Applications/Frontends, hosts que hospedam a aplicacao, hosts de dependencias, Process Groups, Processes e Services.
+Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em sete camadas: configuracao, Applications/Frontends, hosts diretamente ligados ao Frontend, Process Groups de dependencia, Processes de dependencia, Services de dependencia e Hosts de dependencia.
 
-- `rum-topology-comparison-build-20260928-r4.content.json`: arquivo recomendado para importacao pela interface.
-- `rum-topology-comparison-build-20260928-r4.document.json`: envelope versionado para `dtctl apply`.
+- `rum-topology-comparison-build-20260928-r5.content.json`: arquivo recomendado para importacao pela interface.
+- `rum-topology-comparison-build-20260928-r5.document.json`: envelope versionado para `dtctl apply`.
 - `rum-topology-comparison.content.json` e `rum-topology-comparison.document.json`: aliases sem versao.
 - `topology-queries/*.dql`: quatorze consultas Smartscape, uma para cada tabela UPSTREAM/TARGET.
 - `build-topology-dashboard.ps1`: gera o dashboard adicional.
 - `validate-topology-dashboard.ps1`: valida estrutura, simetria, layout, fontes e limites.
 - `validate-topology-dql.ps1`: expande as variaveis e valida as quatorze DQLs; com `-RunTenant`, executa no tenant via `dtctl`.
 
-Importe `rum-topology-comparison-build-20260928-r4.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r4 - classic application topology bridge`.
+Importe `rum-topology-comparison-build-20260928-r5.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r5 - direct frontend hosts and restored dependencies`.
 
-Todas as quatorze tabelas usam apenas entidades e topologia, sem scan de eventos RUM, spans, logs ou metricas. A camada **Application hosting hosts** usa a taxonomia mais completa `APPLICATION -> SERVICE -> PROCESS_GROUP_INSTANCE`, converte a instancia classica para o `PROCESS` Smartscape correspondente e segue `PROCESS -> HOST`. A classificacao web server consulta tanto `process.software_technologies.webserver` quanto `process.software_technologies.os`, pois Apache HTTPD, NGINX e IIS podem estar classificados pelo modulo de sistema operacional.
+Todas as quatorze tabelas usam apenas entidades e topologia, sem scan de eventos RUM, spans, logs ou metricas. A camada **Frontend hosts - direct topology** consulta todas as arestas Smartscape e seleciona qualquer relacao direta `FRONTEND -> HOST` ou `HOST -> FRONTEND` realmente existente no tenant. O tipo, a direcao e a natureza estatica/dinamica da aresta ficam visiveis na tabela.
 
-A camada **Dependency hosts** combina `FRONTEND -> SERVICE -> HOST` e `FRONTEND -> SERVICE -> PROCESS -> HOST` e inclui APIs, gateways, proxies e demais dependencias. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
+A visao de dependencias foi preservada em quatro secoes explicitas: Process Groups, Processes, Services e Hosts. A camada **Dependency hosts** combina `FRONTEND -> SERVICE -> HOST` e `FRONTEND -> SERVICE -> PROCESS -> HOST` e inclui APIs, gateways, proxies e demais dependencias. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
 
-Em RUM Agentless nao existe uma relacao nativa direta de propriedade `FRONTEND -> HOST`. Por isso a secao faz a ponte pelo ID classico da Application e deixa Application, Service, Process Group Instance/Process, Host e ambas as taxonomias de tecnologia visiveis para auditoria. Um servidor sem OneAgent, sem ID classico correspondente ou sem tecnologia web server detectada nao pode ser associado automaticamente por essa topologia.
+A secao direta nao presume que a relacao se chama `runs_on`, `belongs_to` ou qualquer outro nome. Ela mostra o que o catalogo topologico do proprio tenant declara entre o Frontend e o Host, sem misturar os caminhos de dependencia via Service.
 
 ```powershell
 .\build-topology-dashboard.ps1

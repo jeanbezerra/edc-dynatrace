@@ -130,11 +130,11 @@ function Add-DataTile {
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
 # RUM Application Topology Comparison
 
-**Build: 2026-09-28-r4 - classic application topology bridge**
+**Build: 2026-09-28-r5 - direct frontend hosts and restored dependencies**
 
 Read each layer from left to right: **UPSTREAM** on the left and **TARGET / DOWNSTREAM** on the right. The dashboard uses only the current Smartscape catalog and Dynatrace entity taxonomy; it does not scan user events, spans, logs, or metrics.
 
-Application-hosting classification bridges the richer entity topology `APPLICATION -> SERVICE -> PROCESS_GROUP_INSTANCE` to Smartscape `PROCESS -> HOST`. Dependency hosts continue to use `FRONTEND -> SERVICE -> HOST` and `FRONTEND -> SERVICE -> PROCESS -> HOST`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail.
+Section 03 reads every direct Smartscape edge between the selected `FRONTEND` and `HOST`, in either direction, without assuming an edge name. Dependency layers remain separate: Process Groups, Processes, Services, and Hosts reached through `FRONTEND -> SERVICE`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail.
 '@
 
 Add-MarkdownTile -Id "section_configuration" -X 0 -Y 5 -Width 24 -Height 2 -Content @'
@@ -206,164 +206,160 @@ smartscapeNodes "FRONTEND"
 '@
 
 Add-MarkdownTile -Id "section_application_hosts" -X 0 -Y 25 -Width 24 -Height 2 -Content @'
-## 03 - APPLICATION HOSTING HOSTS
+## 03 - FRONTEND HOSTS - DIRECT TOPOLOGY
 
-Hosts classified through the Dynatrace entity topology and process technology taxonomy. This bridge is necessary because the Smartscape `FRONTEND calls SERVICE` edge can contain only browser/API dependencies in some Agentless environments. Web-server classification checks both the web-server module taxonomy and the OS-module taxonomy used by Dynatrace for Apache HTTPD, NGINX, and IIS.
+Every `HOST` connected directly to the selected `FRONTEND` in the tenant topology. The query checks both `FRONTEND -> HOST` and `HOST -> FRONTEND` and displays the actual relationship type and edge kind. It does not traverse services and therefore does not mix API or gateway dependency hosts into this table.
 '@
 
-Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Application hosting hosts" -Description "Entity-taxonomy bridge from the selected Application to its services, process instances, and web-server hosts; no RUM telemetry scan." -X 0 -Y 27 -Width 12 -Height 11 -Query @'
-fetch dt.entity.application
-| filter id in [
+Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Direct frontend hosts" -Description "All direct Smartscape edges between the selected upstream frontend and hosts, in both directions; no dependency traversal or telemetry scan." -X 0 -Y 27 -Width 12 -Height 11 -Query @'
+smartscapeEdges "*"
+| filter source_type == "FRONTEND" and target_type == "HOST"
+| filter source_id in [
     smartscapeNodes "FRONTEND"
-    | filter name == $frontend_upstream and isNotNull(id_classic)
-    | fields id_classic
+    | filter name == $frontend_upstream
+    | fields id
   ]
+| fieldsAdd edge_kind = dt.system.edge_kind
 | fields
-    application_id = id,
-    application_name = entity.name,
-    service_ids = calls[dt.entity.service]
-| expand service_id = service_ids
-| lookup [
-    fetch dt.entity.service
+    frontend_id = source_id,
+    host_id = target_id,
+    relationship_type = type,
+    relationship_direction = "FRONTEND -> HOST",
+    edge_kind
+| append [
+    smartscapeEdges "*"
+    | filter source_type == "HOST" and target_type == "FRONTEND"
+    | filter target_id in [
+        smartscapeNodes "FRONTEND"
+        | filter name == $frontend_upstream
+        | fields id
+      ]
+    | fieldsAdd edge_kind = dt.system.edge_kind
     | fields
-        service_id = id,
-        service_name = entity.name,
-        service_type = serviceType,
-        process_instance_ids = runs_on[dt.entity.process_group_instance]
-  ], sourceField: service_id, lookupField: service_id, prefix: "service."
-| expand process_instance_id = service.process_instance_ids
+        frontend_id = target_id,
+        host_id = source_id,
+        relationship_type = type,
+        relationship_direction = "HOST -> FRONTEND",
+        edge_kind
+  ]
+| dedup frontend_id, host_id, relationship_type, relationship_direction
 | lookup [
-    smartscapeNodes "PROCESS"
-    | filter isNotNull(id_classic)
-    | filter (isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0)
-        or process.software_technologies.os ~ "APACHE_HTTPD"
-        or process.software_technologies.os ~ "NGINX"
-        or process.software_technologies.os ~ "IIS"
-        or process.software_technologies.os ~ "IIS_APP_POOL"
-    | traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward,
-        fieldsKeep: {id, id_classic, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver, process.software_technologies.os}
+    smartscapeNodes "FRONTEND"
+    | fields frontend_id = id, frontend_name = name, classic_frontend_id = id_classic
+  ], sourceField: frontend_id, lookupField: frontend_id, prefix: "frontend."
+| lookup [
+    smartscapeNodes "HOST"
     | fields
-        classic_process_instance_id = dt.traverse.history[-1][id_classic],
-        process_id = dt.traverse.history[-1][id],
-        process_name = dt.traverse.history[-1][name],
-        process_group_id = dt.traverse.history[-1][dt.process_group.id],
-        process_group_name = dt.traverse.history[-1][dt.process_group.detected_name],
-        webserver_technologies = dt.traverse.history[-1][process.software_technologies.webserver],
-        os_technology_taxonomy = dt.traverse.history[-1][process.software_technologies.os],
         host_id = id,
         host_name = name,
         classic_host_id = id_classic,
         host_group = dt.host_group.id,
         os_type = os.type,
         os_name = os.name,
+        os_version = os.version,
         ip_addresses = host.ip,
+        first_observed = getStart(lifetime),
         last_observed = getEnd(lifetime)
-  ], sourceField: process_instance_id, lookupField: classic_process_instance_id, prefix: "hosting."
-| filter isNotNull(hosting.host_id)
+  ], sourceField: host_id, lookupField: host_id, prefix: "host."
 | fields
-    `Application ID` = application_id,
-    `Application name` = application_name,
-    `Host ID` = hosting.host_id,
-    `Host name` = hosting.host_name,
-    `Classic host ID` = hosting.classic_host_id,
-    `Host group` = hosting.host_group,
-    `Hosting service ID` = service.service_id,
-    `Hosting service name` = service.service_name,
-    `Service taxonomy` = service.service_type,
-    `Hosting process ID` = hosting.process_id,
-    `Hosting process name` = hosting.process_name,
-    `Process Group ID` = hosting.process_group_id,
-    `Process Group name` = hosting.process_group_name,
-    `Web server module taxonomy` = hosting.webserver_technologies,
-    `OS module taxonomy` = hosting.os_technology_taxonomy,
-    `OS type` = hosting.os_type,
-    `OS name` = hosting.os_name,
-    `IP addresses` = hosting.ip_addresses,
-    `Last observed` = hosting.last_observed
-| sort `Host name` asc, `Hosting process name` asc
+    `Frontend ID` = frontend_id,
+    `Frontend name` = frontend.frontend_name,
+    `Classic frontend ID` = frontend.classic_frontend_id,
+    `Relationship` = relationship_type,
+    `Direction` = relationship_direction,
+    `Edge kind` = edge_kind,
+    `Host ID` = host_id,
+    `Host name` = host.host_name,
+    `Classic host ID` = host.classic_host_id,
+    `Host group` = host.host_group,
+    `OS type` = host.os_type,
+    `OS name` = host.os_name,
+    `OS version` = host.os_version,
+    `IP addresses` = host.ip_addresses,
+    `First observed` = host.first_observed,
+    `Last observed` = host.last_observed
+| sort `Host name` asc, `Relationship` asc
 | limit 200
 '@
 
-Add-DataTile -Id "target_application_hosts" -Title "TARGET - Application hosting hosts" -Description "Entity-taxonomy bridge from the selected Application to its services, process instances, and web-server hosts; no RUM telemetry scan." -X 12 -Y 27 -Width 12 -Height 11 -Query @'
-fetch dt.entity.application
-| filter id in [
+Add-DataTile -Id "target_application_hosts" -Title "TARGET - Direct frontend hosts" -Description "All direct Smartscape edges between the selected target frontend and hosts, in both directions; no dependency traversal or telemetry scan." -X 12 -Y 27 -Width 12 -Height 11 -Query @'
+smartscapeEdges "*"
+| filter source_type == "FRONTEND" and target_type == "HOST"
+| filter source_id in [
     smartscapeNodes "FRONTEND"
-    | filter name == $frontend_target and isNotNull(id_classic)
-    | fields id_classic
+    | filter name == $frontend_target
+    | fields id
   ]
+| fieldsAdd edge_kind = dt.system.edge_kind
 | fields
-    application_id = id,
-    application_name = entity.name,
-    service_ids = calls[dt.entity.service]
-| expand service_id = service_ids
-| lookup [
-    fetch dt.entity.service
+    frontend_id = source_id,
+    host_id = target_id,
+    relationship_type = type,
+    relationship_direction = "FRONTEND -> HOST",
+    edge_kind
+| append [
+    smartscapeEdges "*"
+    | filter source_type == "HOST" and target_type == "FRONTEND"
+    | filter target_id in [
+        smartscapeNodes "FRONTEND"
+        | filter name == $frontend_target
+        | fields id
+      ]
+    | fieldsAdd edge_kind = dt.system.edge_kind
     | fields
-        service_id = id,
-        service_name = entity.name,
-        service_type = serviceType,
-        process_instance_ids = runs_on[dt.entity.process_group_instance]
-  ], sourceField: service_id, lookupField: service_id, prefix: "service."
-| expand process_instance_id = service.process_instance_ids
+        frontend_id = target_id,
+        host_id = source_id,
+        relationship_type = type,
+        relationship_direction = "HOST -> FRONTEND",
+        edge_kind
+  ]
+| dedup frontend_id, host_id, relationship_type, relationship_direction
 | lookup [
-    smartscapeNodes "PROCESS"
-    | filter isNotNull(id_classic)
-    | filter (isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0)
-        or process.software_technologies.os ~ "APACHE_HTTPD"
-        or process.software_technologies.os ~ "NGINX"
-        or process.software_technologies.os ~ "IIS"
-        or process.software_technologies.os ~ "IIS_APP_POOL"
-    | traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward,
-        fieldsKeep: {id, id_classic, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver, process.software_technologies.os}
+    smartscapeNodes "FRONTEND"
+    | fields frontend_id = id, frontend_name = name, classic_frontend_id = id_classic
+  ], sourceField: frontend_id, lookupField: frontend_id, prefix: "frontend."
+| lookup [
+    smartscapeNodes "HOST"
     | fields
-        classic_process_instance_id = dt.traverse.history[-1][id_classic],
-        process_id = dt.traverse.history[-1][id],
-        process_name = dt.traverse.history[-1][name],
-        process_group_id = dt.traverse.history[-1][dt.process_group.id],
-        process_group_name = dt.traverse.history[-1][dt.process_group.detected_name],
-        webserver_technologies = dt.traverse.history[-1][process.software_technologies.webserver],
-        os_technology_taxonomy = dt.traverse.history[-1][process.software_technologies.os],
         host_id = id,
         host_name = name,
         classic_host_id = id_classic,
         host_group = dt.host_group.id,
         os_type = os.type,
         os_name = os.name,
+        os_version = os.version,
         ip_addresses = host.ip,
+        first_observed = getStart(lifetime),
         last_observed = getEnd(lifetime)
-  ], sourceField: process_instance_id, lookupField: classic_process_instance_id, prefix: "hosting."
-| filter isNotNull(hosting.host_id)
+  ], sourceField: host_id, lookupField: host_id, prefix: "host."
 | fields
-    `Application ID` = application_id,
-    `Application name` = application_name,
-    `Host ID` = hosting.host_id,
-    `Host name` = hosting.host_name,
-    `Classic host ID` = hosting.classic_host_id,
-    `Host group` = hosting.host_group,
-    `Hosting service ID` = service.service_id,
-    `Hosting service name` = service.service_name,
-    `Service taxonomy` = service.service_type,
-    `Hosting process ID` = hosting.process_id,
-    `Hosting process name` = hosting.process_name,
-    `Process Group ID` = hosting.process_group_id,
-    `Process Group name` = hosting.process_group_name,
-    `Web server module taxonomy` = hosting.webserver_technologies,
-    `OS module taxonomy` = hosting.os_technology_taxonomy,
-    `OS type` = hosting.os_type,
-    `OS name` = hosting.os_name,
-    `IP addresses` = hosting.ip_addresses,
-    `Last observed` = hosting.last_observed
-| sort `Host name` asc, `Hosting process name` asc
+    `Frontend ID` = frontend_id,
+    `Frontend name` = frontend.frontend_name,
+    `Classic frontend ID` = frontend.classic_frontend_id,
+    `Relationship` = relationship_type,
+    `Direction` = relationship_direction,
+    `Edge kind` = edge_kind,
+    `Host ID` = host_id,
+    `Host name` = host.host_name,
+    `Classic host ID` = host.classic_host_id,
+    `Host group` = host.host_group,
+    `OS type` = host.os_type,
+    `OS name` = host.os_name,
+    `OS version` = host.os_version,
+    `IP addresses` = host.ip_addresses,
+    `First observed` = host.first_observed,
+    `Last observed` = host.last_observed
+| sort `Host name` asc, `Relationship` asc
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_dependency_hosts" -X 0 -Y 38 -Width 24 -Height 2 -Content @'
-## 04 - DOWNSTREAM / DEPENDENCY HOSTS
+Add-MarkdownTile -Id "section_dependency_hosts" -X 0 -Y 75 -Width 24 -Height 2 -Content @'
+## 07 - DEPENDENCIES - HOSTS
 
 Hosts reached through every service associated with the frontend, including APIs, gateways, proxies, and other downstream dependencies. This layer explains the Sensedia-style hosts and is intentionally separate from the application-hosting evidence above.
 '@
 
-Add-DataTile -Id "upstream_hosts" -Title "UPSTREAM - Dependency hosts" -Description "All hosts reached through services associated with the upstream frontend; these are dependencies, not proof of application ownership." -X 0 -Y 40 -Width 12 -Height 10 -Query @'
+Add-DataTile -Id "upstream_hosts" -Title "UPSTREAM - Dependency hosts" -Description "All hosts reached through services associated with the upstream frontend; these are dependencies, not direct frontend-host edges." -X 0 -Y 77 -Width 12 -Height 10 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -391,7 +387,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_hosts" -Title "TARGET - Dependency hosts" -Description "All hosts reached through services associated with the target frontend; these are dependencies, not proof of application ownership." -X 12 -Y 40 -Width 12 -Height 10 -Query @'
+Add-DataTile -Id "target_hosts" -Title "TARGET - Dependency hosts" -Description "All hosts reached through services associated with the target frontend; these are dependencies, not direct frontend-host edges." -X 12 -Y 77 -Width 12 -Height 10 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -419,13 +415,13 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_process_groups" -X 0 -Y 50 -Width 24 -Height 2 -Content @'
-## 05 - PROCESS GROUPS
+Add-MarkdownTile -Id "section_process_groups" -X 0 -Y 38 -Width 24 -Height 2 -Content @'
+## 04 - DEPENDENCIES - PROCESS GROUPS
 
 Process Group is a compatibility grouping derived from processes. The table keeps the Dynatrace Process Group ID and detected name visible for human reading.
 '@
 
-Add-DataTile -Id "upstream_process_groups" -Title "UPSTREAM - Process groups" -Description "Process groups behind services called by the upstream frontend." -X 0 -Y 52 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "upstream_process_groups" -Title "UPSTREAM - Dependency process groups" -Description "Process groups behind services called by the upstream frontend." -X 0 -Y 40 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -439,7 +435,7 @@ smartscapeNodes "FRONTEND"
 | limit 100
 '@
 
-Add-DataTile -Id "target_process_groups" -Title "TARGET - Process groups" -Description "Process groups behind services called by the target frontend." -X 12 -Y 52 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "target_process_groups" -Title "TARGET - Dependency process groups" -Description "Process groups behind services called by the target frontend." -X 12 -Y 40 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -453,13 +449,13 @@ smartscapeNodes "FRONTEND"
 | limit 100
 '@
 
-Add-MarkdownTile -Id "section_processes" -X 0 -Y 61 -Width 24 -Height 2 -Content @'
-## 06 - PROCESSES
+Add-MarkdownTile -Id "section_processes" -X 0 -Y 49 -Width 24 -Height 2 -Content @'
+## 05 - DEPENDENCIES - PROCESSES
 
 Smartscape `PROCESS` nodes on which the directly called services run. The Process Group columns preserve the grouping context.
 '@
 
-Add-DataTile -Id "upstream_processes" -Title "UPSTREAM - Processes" -Description "Processes supporting services called by the upstream frontend." -X 0 -Y 63 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "upstream_processes" -Title "UPSTREAM - Dependency processes" -Description "Processes supporting services called by the upstream frontend." -X 0 -Y 51 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -475,7 +471,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_processes" -Title "TARGET - Processes" -Description "Processes supporting services called by the target frontend." -X 12 -Y 63 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "target_processes" -Title "TARGET - Dependency processes" -Description "Processes supporting services called by the target frontend." -X 12 -Y 51 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -491,13 +487,13 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_services" -X 0 -Y 74 -Width 24 -Height 2 -Content @'
-## 07 - SERVICES
+Add-MarkdownTile -Id "section_services" -X 0 -Y 62 -Width 24 -Height 2 -Content @'
+## 06 - DEPENDENCIES - SERVICES
 
 Services directly linked to each frontend by the stable Smartscape `calls` relationship.
 '@
 
-Add-DataTile -Id "upstream_services" -Title "UPSTREAM - Services" -Description "Services directly called by the upstream frontend." -X 0 -Y 76 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "upstream_services" -Title "UPSTREAM - Dependency services" -Description "Services directly called by the upstream frontend." -X 0 -Y 64 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -512,7 +508,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_services" -Title "TARGET - Services" -Description "Services directly called by the target frontend." -X 12 -Y 76 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "target_services" -Title "TARGET - Dependency services" -Description "Services directly called by the target frontend." -X 12 -Y 64 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -560,7 +556,7 @@ $content = [ordered]@{
 }
 
 $document = [ordered]@{
-    name = "RUM Application Topology Comparison - build 2026-09-28-r4"
+    name = "RUM Application Topology Comparison - build 2026-09-28-r5"
     type = "dashboard"
     content = $content
 }
@@ -570,7 +566,7 @@ $contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.document.json"), $documentJson + "`n", $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.content.json"), $contentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r4.document.json"), $documentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r4.content.json"), $contentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r5.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r5.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated side-by-side topology dashboard with $($tiles.Count) tiles and $((Get-ChildItem -LiteralPath $queriesDirectory -Filter '*.dql' -File).Count) queries."

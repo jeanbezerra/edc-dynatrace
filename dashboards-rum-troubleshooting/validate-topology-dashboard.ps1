@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $contentPath)) {
 $document = Get-Content -LiteralPath $documentPath -Raw -Encoding utf8 | ConvertFrom-Json
 $content = $document.content
 
-if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r4") {
+if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r5") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard" -or $content.version -ne 21) {
@@ -98,18 +98,19 @@ foreach ($tileId in $requiredDataTiles) {
         Add-ValidationError "$tileId does not use $expectedVariable."
     }
     if ($tileId -in @("upstream_application_hosts", "target_application_hosts")) {
-        if ($tile.query -notmatch '(?im)^fetch\s+dt\.entity\.application\s*$') {
-            Add-ValidationError "$tileId must start from the Application entity taxonomy."
-        }
-        if ($tile.query -match '(?im)^\s*fetch\s+(?:user\.events|user\.sessions|spans|logs|events|bizevents)') {
-            Add-ValidationError "$tileId must not scan telemetry."
+        if ($tile.query -notmatch '(?im)^smartscapeEdges\s+"\*"\s*$') {
+            Add-ValidationError "$tileId must start from the complete Smartscape edge catalog."
         }
     }
     elseif ($tile.query -notmatch '(?im)^smartscapeNodes\s+"FRONTEND"\s*$') {
         Add-ValidationError "$tileId must start from a FRONTEND Smartscape node."
     }
-    if ($tileId -notin @("upstream_application_hosts", "target_application_hosts") -and $tile.query -match '\bdt\.entity\.') {
+    if ($tile.query -match '\bdt\.entity\.') {
         Add-ValidationError "$tileId uses a deprecated dt.entity field."
+    }
+    if ($tile.query -match '(?im)^\s*fetch\s+(?:user\.events|user\.sessions|spans|logs|events|bizevents)' -or
+        $tile.query -match '(?im)^\s*(?:timeseries|metrics)\s+') {
+        Add-ValidationError "$tileId must not scan telemetry."
     }
     if ($tile.query -notmatch '(?im)^\s*\|\s*limit\s+\d+\s*$') {
         Add-ValidationError "$tileId must have an explicit result limit."
@@ -139,22 +140,38 @@ foreach ($tileId in @("upstream_process_groups", "target_process_groups", "upstr
 
 foreach ($tileId in @("upstream_application_hosts", "target_application_hosts")) {
     $query = $content.tiles.$tileId.query
-    if ($query -notmatch 'calls\[dt\.entity\.service\]' -or
-        $query -notmatch 'runs_on\[dt\.entity\.process_group_instance\]' -or
-        $query -notmatch '(?im)^\s*smartscapeNodes\s+"PROCESS"\s*$' -or
-        $query -notmatch 'targetTypes:\s*\{HOST\}' -or
-        $query -notmatch 'process\.software_technologies\.webserver' -or
-        $query -notmatch 'process\.software_technologies\.os\s*~\s*"APACHE_HTTPD"' -or
-        $query -notmatch 'classic_process_instance_id\s*=\s*dt\.traverse\.history\[-1\]\[id_classic\]') {
-        Add-ValidationError "$tileId must bridge APPLICATION -> SERVICE -> PROCESS_GROUP_INSTANCE to taxonomic PROCESS -> HOST."
+    if ($query -notmatch 'source_type\s*==\s*"FRONTEND"\s+and\s+target_type\s*==\s*"HOST"' -or
+        $query -notmatch 'source_type\s*==\s*"HOST"\s+and\s+target_type\s*==\s*"FRONTEND"' -or
+        $query -notmatch 'source_id\s+in\s*\[' -or
+        $query -notmatch 'target_id\s+in\s*\[' -or
+        $query -notmatch '(?im)^\s*\|\s*append\s*\[' -or
+        $query -notmatch 'dt\.system\.edge_kind' -or
+        $query -notmatch '(?im)^\s*smartscapeNodes\s+"HOST"\s*$') {
+        Add-ValidationError "$tileId must discover direct FRONTEND <-> HOST edges in both directions and enrich the HOST."
     }
-    if ($query -match '(?im)^\s*\|\s*append\s*\[') {
-        Add-ValidationError "$tileId must not mix direct dependency hosts into application-host classification."
+    if ($query -match 'targetTypes:\s*\{SERVICE\}' -or $query -match 'targetTypes:\s*\{PROCESS\}') {
+        Add-ValidationError "$tileId must not traverse dependency services or processes."
     }
-    foreach ($field in @('`Application ID`', '`Application name`', '`Host ID`', '`Host name`', '`Hosting service ID`', '`Hosting service name`', '`Hosting process ID`', '`Hosting process name`', '`Process Group ID`', '`Process Group name`', '`Web server module taxonomy`', '`OS module taxonomy`')) {
+    foreach ($field in @('`Frontend ID`', '`Frontend name`', '`Relationship`', '`Direction`', '`Edge kind`', '`Host ID`', '`Host name`', '`Host group`', '`OS type`', '`IP addresses`', '`Last observed`')) {
         if ($query -notmatch [regex]::Escape($field)) {
-            Add-ValidationError "$tileId is missing hosting evidence field $field."
+            Add-ValidationError "$tileId is missing direct frontend-host evidence field $field."
         }
+    }
+}
+
+$expectedSectionOrder = [ordered]@{
+    section_configuration = 5
+    section_applications = 16
+    section_application_hosts = 25
+    section_process_groups = 38
+    section_processes = 49
+    section_services = 62
+    section_dependency_hosts = 75
+}
+foreach ($entry in $expectedSectionOrder.GetEnumerator()) {
+    $layout = $content.layouts.($entry.Key)
+    if ($null -eq $layout -or $layout.y -ne $entry.Value -or $layout.x -ne 0 -or $layout.w -ne 24) {
+        Add-ValidationError "$($entry.Key) is missing or outside the restored dependency section order."
     }
 }
 
@@ -230,7 +247,7 @@ if ($errors.Count -gt 0) {
     MarkdownTiles = $markdownTiles.Count
     Queries = $queryFiles.Count
     Layout = "24 columns; UPSTREAM left; TARGET right; no overlaps"
-    DataSources = "Smartscape nodes/traversal and Dynatrace entity taxonomy only"
+    DataSources = "Smartscape nodes, edges, and traversal only"
     TelemetryScans = 0
     ScanLimitPerTile = "1 GB"
 }

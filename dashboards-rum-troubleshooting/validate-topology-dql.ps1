@@ -62,11 +62,8 @@ function Test-ExpandedQuery {
     }
     $isApplicationHostQuery = $Name -match '^tile:(upstream|target)_application_hosts$'
     if ($isApplicationHostQuery) {
-        if ($expanded -notmatch '(?im)^fetch\s+dt\.entity\.application\s*$') {
-            $queryErrors.Add("Application-host query does not start from the Application entity taxonomy.")
-        }
-        if ($expanded -match '(?im)^\s*fetch\s+(?:user\.events|user\.sessions|spans|logs|events|bizevents)') {
-            $queryErrors.Add("Application-host query scans telemetry.")
+        if ($expanded -notmatch '(?im)^smartscapeEdges\s+"\*"\s*$') {
+            $queryErrors.Add("Frontend-host query does not start from the complete Smartscape edge catalog.")
         }
     }
     else {
@@ -76,6 +73,10 @@ function Test-ExpandedQuery {
         if ($expanded -notmatch '(?im)^smartscapeNodes\s+"FRONTEND"\s*$') {
             $queryErrors.Add("Query does not start from a FRONTEND Smartscape node.")
         }
+    }
+    if ($expanded -match '(?im)^\s*fetch\s+(?:user\.events|user\.sessions|spans|logs|events|bizevents)' -or
+        $expanded -match '(?im)^\s*(?:timeseries|metrics)\s+') {
+        $queryErrors.Add("Topology query scans telemetry.")
     }
     if ($expanded -notmatch '(?im)^\s*\|\s*limit\s+\d+\s*$') {
         $queryErrors.Add("Query has no explicit result limit.")
