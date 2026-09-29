@@ -111,6 +111,10 @@ foreach ($property in $dataTiles) {
         $tile.query -match '""\s*(?:==|!=)\s*\$(?:frontend_upstream|frontend_target|upstream_url|target_url|session_id|request_url|trace_id)') {
         Add-ValidationError "Tile '$($property.Name)' compares a dashboard variable directly with an empty string; variable expansion can create an always-true or always-false expression."
     }
+
+    if ($tile.query -match 'contains\([^\r\n]*,\s*(?:true|false)\s*\)') {
+        Add-ValidationError "Tile '$($property.Name)' passes caseSensitive positionally to contains(); the optional parameter must be named."
+    }
 }
 
 foreach ($property in $markdownTiles) {

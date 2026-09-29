@@ -101,6 +101,10 @@ foreach ($tileProperty in @($document.content.tiles.psobject.Properties | Where-
         $failures.Add("tile:$($tileProperty.Name)`nVariable expansion passed an empty string to toUid().")
         continue
     }
+    if ($expandedQuery -match 'contains\([^\r\n]*,\s*(?:true|false)\s*\)') {
+        $failures.Add("tile:$($tileProperty.Name)`ncontains() uses a positional optional parameter; use caseSensitive: instead.")
+        continue
+    }
 
     $output = & dtctl query $expandedQuery --plain 2>&1
     if ($LASTEXITCODE -ne 0) {

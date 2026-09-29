@@ -156,8 +156,8 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
     or (isNull(frontend.name) and (
-        (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, false))
-        or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false))))
+        (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
+        or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false))))
 | summarize {
     upstream_events = countIf(frontend.name == $frontend_upstream),
     target_events = countIf(frontend.name == $frontend_target),
@@ -166,9 +166,9 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
     target_last_seen = max(if(frontend.name == $frontend_target, start_time)),
     upstream_id_count = countDistinctExact(if(frontend.name == $frontend_upstream, dt.rum.instrumentation.id)),
     target_id_count = countDistinctExact(if(frontend.name == $frontend_target, dt.rum.instrumentation.id)),
-    target_url_events = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false)),
-    target_url_in_upstream = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_upstream),
-    target_url_in_target = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false) and frontend.name == $frontend_target),
+    target_url_events = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false)),
+    target_url_in_upstream = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and frontend.name == $frontend_upstream),
+    target_url_in_target = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and frontend.name == $frontend_target),
     target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request),
     traced_target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request and isNotNull(trace.id))
   }
@@ -251,10 +251,10 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 | filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
 | filter isNotNull(observed_url)
-    and ((stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, false))
-      or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false)))
+    and ((stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
+      or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false)))
 | fieldsAdd
-    `URL scope` = if(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, false), "TARGET", else: "UPSTREAM"),
+    `URL scope` = if(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false), "TARGET", else: "UPSTREAM"),
     `Observed frontend` = coalesce(frontend.name, "(unknown)")
 | fieldsAdd `Expected frontend` = if(`URL scope` == "TARGET", $frontend_target, else: $frontend_upstream)
 | summarize
@@ -329,7 +329,7 @@ Add-DataTile -Id "target_requests" -Title "Requests emitted by the target fronte
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
 | filter frontend.name == $frontend_target and characteristics.has_request
 | fieldsAdd request_target = coalesce(url.full, url.path, "")
-| filter contains(request_target, $request_url:triplequote, false)
+| filter contains(request_target, $request_url:triplequote, caseSensitive: false)
 | summarize
     Calls = count(),
     Failures = countIf(characteristics.has_failed_request),

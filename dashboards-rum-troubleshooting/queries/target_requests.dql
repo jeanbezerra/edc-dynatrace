@@ -1,7 +1,7 @@
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
 | filter frontend.name == $frontend_target and characteristics.has_request
 | fieldsAdd request_target = coalesce(url.full, url.path, "")
-| filter contains(request_target, $request_url:triplequote, false)
+| filter contains(request_target, $request_url:triplequote, caseSensitive: false)
 | summarize
     Calls = count(),
     Failures = countIf(characteristics.has_failed_request),
