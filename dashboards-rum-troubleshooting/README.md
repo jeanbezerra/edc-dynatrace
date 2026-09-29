@@ -10,8 +10,10 @@ O cenário padrão considera que ambos já utilizaram RUM Agentless, mas a inje�
 
 ## Artefatos
 
-- `rum-diagnostic-explorer.content.json`: importe pela interface do Dashboards.
-- `rum-diagnostic-explorer.document.json`: envelope para `dtctl apply`.
+- `rum-diagnostic-explorer-build-20260928-r4.content.json`: artefato versionado recomendado para importar pela interface do Dashboards.
+- `rum-diagnostic-explorer-build-20260928-r4.document.json`: envelope versionado para `dtctl apply`.
+- `rum-diagnostic-explorer.content.json`: alias sem versão para automações existentes.
+- `rum-diagnostic-explorer.document.json`: alias sem versão para automações existentes.
 - `queries/*.dql`: as oito consultas utilizadas pelos tiles.
 - `build-dashboard.ps1`: regenera os JSONs e remove consultas antigas que não pertencem mais ao dashboard.
 - `validate-dashboard.ps1`: valida estrutura, layout e limites de custo.
@@ -96,7 +98,7 @@ Eventos dentro da janela podem ter sido produzidos antes de uma mudança recente
 
 ### Interface
 
-Importe `rum-diagnostic-explorer.content.json` em **Dashboards -> Import dashboard**.
+Importe `rum-diagnostic-explorer-build-20260928-r4.content.json` em **Dashboards -> Import dashboard**. Depois de abrir o dashboard importado, confirme no primeiro card o texto `Build: 2026-09-28-r4 - named optional parameters`. O nome novo evita confundir esta importação com uma cópia anterior.
 
 ### dtctl
 

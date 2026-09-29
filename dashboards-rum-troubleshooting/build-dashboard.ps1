@@ -133,6 +133,8 @@ function Add-DataTile {
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
 # RUM Agentless Pair Diagnostic
 
+**Build: 2026-09-28-r4 - named optional parameters**
+
 Compare any two web frontends in a chained navigation: **upstream -> target**. The default scenario assumes RUM was disabled on the upstream application and must remain active only on the target application.
 
 > Cost guard: every telemetry query ignores a larger global timeframe and is capped by `analysis_window_minutes` at 15, 30, or 60 minutes. Default: 15 minutes.
@@ -461,7 +463,7 @@ $content = [ordered]@{
 }
 
 $document = [ordered]@{
-    name = "RUM Diagnostic Explorer"
+    name = "RUM Diagnostic Explorer - build 2026-09-28-r4"
     type = "dashboard"
     content = $content
 }
@@ -471,5 +473,7 @@ $contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.document.json"), $documentJson + "`n", $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.content.json"), $contentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r4.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r4.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated cost-bounded dashboard files and $($tiles.Count) tile definitions."

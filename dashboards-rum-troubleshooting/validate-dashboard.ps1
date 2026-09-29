@@ -31,7 +31,7 @@ foreach ($artifact in @(
     }
 }
 
-if ($document.name -ne "RUM Diagnostic Explorer") {
+if ($document.name -ne "RUM Diagnostic Explorer - build 2026-09-28-r4") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard") {
