@@ -97,6 +97,10 @@ foreach ($tileProperty in @($document.content.tiles.psobject.Properties | Where-
         $failures.Add("tile:$($tileProperty.Name)`nVariable expansion created a constant empty-string comparison.")
         continue
     }
+    if ($expandedQuery -match 'toUid\(\s*""\s*\)') {
+        $failures.Add("tile:$($tileProperty.Name)`nVariable expansion passed an empty string to toUid().")
+        continue
+    }
 
     $output = & dtctl query $expandedQuery --plain 2>&1
     if ($LASTEXITCODE -ne 0) {

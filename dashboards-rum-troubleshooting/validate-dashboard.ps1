@@ -103,7 +103,7 @@ foreach ($property in $dataTiles) {
     }
 
     if ($tile.query -match '(?im)^\s*fetch\s+spans\b' -and
-        $tile.query -notmatch 'trace\.id\s*==\s*toUid\(\$trace_id\)') {
+        ($tile.query -notmatch 'trace\.id\s*==\s*toUid\(' -or $tile.query -notmatch '\$trace_id')) {
         Add-ValidationError "Tile '$($property.Name)' scans spans without an exact trace_id lookup."
     }
 

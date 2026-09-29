@@ -376,7 +376,8 @@ smartscapeEdges "calls"
 
 Add-DataTile -Id "frontend_servers" -Title "Servers observed for the selected trace" -Description "Exact trace lookup grouped by service, host, and process group. This preserves the single bounded spans scan." -Visualization "table" -X 12 -Y 58 -Width 12 -Height 10 -Query @'
 fetch spans, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter trace.id == toUid($trace_id)
+| fieldsAdd selected_trace_id = if(stringLength($trace_id) > 0, $trace_id, else: "00000000000000000000000000000000")
+| filter trace.id == toUid(selected_trace_id)
 | filter isNotNull(dt.smartscape.host)
 | summarize
     `Observed spans` = count(),
