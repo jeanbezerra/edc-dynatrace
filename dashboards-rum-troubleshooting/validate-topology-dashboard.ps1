@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $contentPath)) {
 $document = Get-Content -LiteralPath $documentPath -Raw -Encoding utf8 | ConvertFrom-Json
 $content = $document.content
 
-if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r1") {
+if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r2") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard" -or $content.version -ne 21) {
@@ -58,8 +58,8 @@ $layoutProperties = @($content.layouts.psobject.Properties)
 $dataTiles = @($tileProperties | Where-Object { $_.Value.type -eq "data" })
 $markdownTiles = @($tileProperties | Where-Object { $_.Value.type -eq "markdown" })
 
-if ($tileProperties.Count -ne 16 -or $dataTiles.Count -ne 10 -or $markdownTiles.Count -ne 6) {
-    Add-ValidationError "Expected 16 tiles: 10 data and 6 markdown; found $($tileProperties.Count), $($dataTiles.Count), $($markdownTiles.Count)."
+if ($tileProperties.Count -ne 19 -or $dataTiles.Count -ne 12 -or $markdownTiles.Count -ne 7) {
+    Add-ValidationError "Expected 19 tiles: 12 data and 7 markdown; found $($tileProperties.Count), $($dataTiles.Count), $($markdownTiles.Count)."
 }
 if ($layoutProperties.Count -ne $tileProperties.Count) {
     Add-ValidationError "Every tile must have one layout."
@@ -68,6 +68,7 @@ if ($layoutProperties.Count -ne $tileProperties.Count) {
 $requiredDataTiles = @(
     "upstream_configuration", "target_configuration",
     "upstream_applications", "target_applications",
+    "upstream_hosts", "target_hosts",
     "upstream_process_groups", "target_process_groups",
     "upstream_processes", "target_processes",
     "upstream_services", "target_services"
@@ -129,6 +130,23 @@ foreach ($tileId in @("upstream_process_groups", "target_process_groups", "upstr
     }
 }
 
+foreach ($tileId in @("upstream_hosts", "target_hosts")) {
+    $query = $content.tiles.$tileId.query
+    $hostTraversals = ([regex]::Matches($query, 'targetTypes:\s*\{HOST\}')).Count
+    if ($query -notmatch 'edgeTypes:\s*\{calls\}' -or
+        $query -notmatch 'targetTypes:\s*\{SERVICE\}' -or
+        $query -notmatch 'targetTypes:\s*\{PROCESS\}' -or
+        $hostTraversals -lt 2 -or
+        $query -notmatch '(?im)^\s*\|\s*append\s*\[') {
+        Add-ValidationError "$tileId must combine SERVICE -> HOST and SERVICE -> PROCESS -> HOST paths."
+    }
+    foreach ($field in @('`Host ID`', '`Host name`', 'dt.host_group.id', 'os.type', 'host.ip', 'getEnd(lifetime)')) {
+        if ($query -notmatch [regex]::Escape($field)) {
+            Add-ValidationError "$tileId is missing host identity/state field $field."
+        }
+    }
+}
+
 foreach ($tileId in @("upstream_services", "target_services")) {
     $query = $content.tiles.$tileId.query
     if ($query -notmatch 'edgeTypes:\s*\{calls\}' -or $query -notmatch 'targetTypes:\s*\{SERVICE\}') {
@@ -154,8 +172,8 @@ for ($i = 0; $i -lt $layoutProperties.Count; $i++) {
 }
 
 $queryFiles = @(Get-ChildItem -LiteralPath $queriesDirectory -Filter "*.dql" -File)
-if ($queryFiles.Count -ne 10) {
-    Add-ValidationError "Expected 10 generated topology queries, found $($queryFiles.Count)."
+if ($queryFiles.Count -ne 12) {
+    Add-ValidationError "Expected 12 generated topology queries, found $($queryFiles.Count)."
 }
 
 foreach ($path in @($documentPath, $contentPath) + @($queryFiles.FullName)) {

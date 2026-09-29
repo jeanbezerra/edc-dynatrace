@@ -1,0 +1,25 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_target
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward
+| append [
+    smartscapeNodes "FRONTEND"
+    | filter name == $frontend_target
+    | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+    | traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward
+    | traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward
+  ]
+| dedup id
+| fields
+    `Host ID` = id,
+    `Host name` = name,
+    `Classic host ID` = id_classic,
+    `Host group` = dt.host_group.id,
+    `OS type` = os.type,
+    `OS name` = os.name,
+    `OS version` = os.version,
+    `IP addresses` = host.ip,
+    `First observed` = getStart(lifetime),
+    `Last observed` = getEnd(lifetime)
+| sort `Host name` asc, `Host ID` asc
+| limit 200
