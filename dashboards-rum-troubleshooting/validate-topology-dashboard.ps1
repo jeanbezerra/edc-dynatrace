@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $contentPath)) {
 $document = Get-Content -LiteralPath $documentPath -Raw -Encoding utf8 | ConvertFrom-Json
 $content = $document.content
 
-if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r2") {
+if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r3") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard" -or $content.version -ne 21) {
@@ -34,6 +34,7 @@ $variables = @($content.variables)
 if ($variables.Count -ne 2) {
     Add-ValidationError "Expected exactly two frontend variables, found $($variables.Count)."
 }
+
 foreach ($key in @("frontend_upstream", "frontend_target")) {
     $variable = @($variables | Where-Object { $_.key -eq $key })
     if ($variable.Count -ne 1 -or $variable[0].type -ne "query" -or $variable[0].multiple -ne $false) {
@@ -58,8 +59,8 @@ $layoutProperties = @($content.layouts.psobject.Properties)
 $dataTiles = @($tileProperties | Where-Object { $_.Value.type -eq "data" })
 $markdownTiles = @($tileProperties | Where-Object { $_.Value.type -eq "markdown" })
 
-if ($tileProperties.Count -ne 19 -or $dataTiles.Count -ne 12 -or $markdownTiles.Count -ne 7) {
-    Add-ValidationError "Expected 19 tiles: 12 data and 7 markdown; found $($tileProperties.Count), $($dataTiles.Count), $($markdownTiles.Count)."
+if ($tileProperties.Count -ne 22 -or $dataTiles.Count -ne 14 -or $markdownTiles.Count -ne 8) {
+    Add-ValidationError "Expected 22 tiles: 14 data and 8 markdown; found $($tileProperties.Count), $($dataTiles.Count), $($markdownTiles.Count)."
 }
 if ($layoutProperties.Count -ne $tileProperties.Count) {
     Add-ValidationError "Every tile must have one layout."
@@ -68,6 +69,7 @@ if ($layoutProperties.Count -ne $tileProperties.Count) {
 $requiredDataTiles = @(
     "upstream_configuration", "target_configuration",
     "upstream_applications", "target_applications",
+    "upstream_application_hosts", "target_application_hosts",
     "upstream_hosts", "target_hosts",
     "upstream_process_groups", "target_process_groups",
     "upstream_processes", "target_processes",
@@ -130,6 +132,27 @@ foreach ($tileId in @("upstream_process_groups", "target_process_groups", "upstr
     }
 }
 
+foreach ($tileId in @("upstream_application_hosts", "target_application_hosts")) {
+    $query = $content.tiles.$tileId.query
+    if ($query -notmatch 'edgeTypes:\s*\{calls\}' -or
+        $query -notmatch 'targetTypes:\s*\{SERVICE\}' -or
+        $query -notmatch 'targetTypes:\s*\{PROCESS\}' -or
+        $query -notmatch 'targetTypes:\s*\{HOST\}' -or
+        $query -notmatch 'arraySize\(process\.software_technologies\.webserver\)\s*>\s*0' -or
+        $query -notmatch 'dt\.traverse\.history\[-2\]\[dt\.service\.sdv1_type\]' -or
+        $query -notmatch 'dt\.traverse\.history\[-1\]\[process\.software_technologies\.webserver\]') {
+        Add-ValidationError "$tileId must map the taxonomic FRONTEND -> SERVICE -> web-server PROCESS -> HOST path."
+    }
+    if ($query -match '(?im)^\s*\|\s*append\s*\[') {
+        Add-ValidationError "$tileId must not mix direct dependency hosts into application-host classification."
+    }
+    foreach ($field in @('`Host ID`', '`Host name`', '`Hosting service ID`', '`Hosting service name`', '`Hosting process ID`', '`Hosting process name`', '`Process Group ID`', '`Process Group name`', '`Web server technologies`')) {
+        if ($query -notmatch [regex]::Escape($field)) {
+            Add-ValidationError "$tileId is missing hosting evidence field $field."
+        }
+    }
+}
+
 foreach ($tileId in @("upstream_hosts", "target_hosts")) {
     $query = $content.tiles.$tileId.query
     $hostTraversals = ([regex]::Matches($query, 'targetTypes:\s*\{HOST\}')).Count
@@ -172,8 +195,8 @@ for ($i = 0; $i -lt $layoutProperties.Count; $i++) {
 }
 
 $queryFiles = @(Get-ChildItem -LiteralPath $queriesDirectory -Filter "*.dql" -File)
-if ($queryFiles.Count -ne 12) {
-    Add-ValidationError "Expected 12 generated topology queries, found $($queryFiles.Count)."
+if ($queryFiles.Count -ne 14) {
+    Add-ValidationError "Expected 14 generated topology queries, found $($queryFiles.Count)."
 }
 
 foreach ($path in @($documentPath, $contentPath) + @($queryFiles.FullName)) {
@@ -202,7 +225,7 @@ if ($errors.Count -gt 0) {
     MarkdownTiles = $markdownTiles.Count
     Queries = $queryFiles.Count
     Layout = "24 columns; UPSTREAM left; TARGET right; no overlaps"
-    DataSources = "Smartscape nodes/traversal only"
+    DataSources = "Smartscape nodes/traversal and Dynatrace entity taxonomy only"
     TelemetryScans = 0
     ScanLimitPerTile = "1 GB"
 }

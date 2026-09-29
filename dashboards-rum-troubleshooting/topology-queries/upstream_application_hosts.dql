@@ -1,0 +1,26 @@
+smartscapeNodes "FRONTEND"
+| filter name == $frontend_upstream
+| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
+| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward, fieldsKeep: {id, name, dt.service_detection.version, dt.service.sdv1_type}
+| filter isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0
+| traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward, fieldsKeep: {id, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver}
+| fields
+    `Host ID` = id,
+    `Host name` = name,
+    `Classic host ID` = id_classic,
+    `Host group` = dt.host_group.id,
+    `Hosting service ID` = dt.traverse.history[-2][id],
+    `Hosting service name` = dt.traverse.history[-2][name],
+    `Service detection version` = dt.traverse.history[-2][dt.service_detection.version],
+    `Service taxonomy` = dt.traverse.history[-2][dt.service.sdv1_type],
+    `Hosting process ID` = dt.traverse.history[-1][id],
+    `Hosting process name` = dt.traverse.history[-1][name],
+    `Process Group ID` = dt.traverse.history[-1][dt.process_group.id],
+    `Process Group name` = dt.traverse.history[-1][dt.process_group.detected_name],
+    `Web server technologies` = dt.traverse.history[-1][process.software_technologies.webserver],
+    `OS type` = os.type,
+    `OS name` = os.name,
+    `IP addresses` = host.ip,
+    `Last observed` = getEnd(lifetime)
+| sort `Host name` asc, `Hosting process name` asc
+| limit 200

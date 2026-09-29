@@ -2,19 +2,23 @@
 
 ## Dashboard adicional: RUM Application Topology Comparison
 
-Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em seis camadas: configuracao, Applications/Frontends, Hosts, Process Groups, Processes e Services.
+Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em sete camadas: configuracao, Applications/Frontends, hosts que hospedam a aplicacao, hosts de dependencias, Process Groups, Processes e Services.
 
-- `rum-topology-comparison-build-20260928-r2.content.json`: arquivo recomendado para importacao pela interface.
-- `rum-topology-comparison-build-20260928-r2.document.json`: envelope versionado para `dtctl apply`.
+- `rum-topology-comparison-build-20260928-r3.content.json`: arquivo recomendado para importacao pela interface.
+- `rum-topology-comparison-build-20260928-r3.document.json`: envelope versionado para `dtctl apply`.
 - `rum-topology-comparison.content.json` e `rum-topology-comparison.document.json`: aliases sem versao.
-- `topology-queries/*.dql`: doze consultas Smartscape, uma para cada tabela UPSTREAM/TARGET.
+- `topology-queries/*.dql`: quatorze consultas Smartscape, uma para cada tabela UPSTREAM/TARGET.
 - `build-topology-dashboard.ps1`: gera o dashboard adicional.
 - `validate-topology-dashboard.ps1`: valida estrutura, simetria, layout, fontes e limites.
-- `validate-topology-dql.ps1`: expande as variaveis e valida as doze DQLs; com `-RunTenant`, executa no tenant via `dtctl`.
+- `validate-topology-dql.ps1`: expande as variaveis e valida as quatorze DQLs; com `-RunTenant`, executa no tenant via `dtctl`.
 
-Importe `rum-topology-comparison-build-20260928-r2.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r2 - topology with hosts`.
+Importe `rum-topology-comparison-build-20260928-r3.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r3 - application hosts separated`.
 
-O dashboard usa somente `smartscapeNodes`, `traverse` e `append`; nao executa scans de eventos, spans, logs ou metricas. A camada Hosts combina os caminhos `FRONTEND -> SERVICE -> HOST` e `FRONTEND -> SERVICE -> PROCESS -> HOST`. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
+Todas as quatorze tabelas usam somente `smartscapeNodes`, `traverse` e `append`, sem scan de eventos RUM, spans, logs ou metricas. A camada **Application hosting hosts** segue a taxonomia do Dynatrace: `FRONTEND -> SERVICE -> PROCESS -> HOST`, aceitando apenas processos com classificacao em `process.software_technologies.webserver`. Ela tambem exibe a taxonomia do servico, a tecnologia web server, o processo e o Process Group que sustentam a classificacao, sem fixar Apache, NGINX, IIS ou qualquer nome de produto.
+
+A camada **Dependency hosts** combina `FRONTEND -> SERVICE -> HOST` e `FRONTEND -> SERVICE -> PROCESS -> HOST` e inclui APIs, gateways, proxies e demais dependencias. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
+
+Em RUM Agentless nao existe uma relacao nativa de propriedade `FRONTEND -> HOST`. Por isso a secao de hospedagem usa a classificacao tecnologica nativa do processo como criterio taxonomico e deixa toda a cadeia visivel para auditoria. Um servidor sem OneAgent ou sem tecnologia web server detectada nao pode ser associado automaticamente por essa topologia.
 
 ```powershell
 .\build-topology-dashboard.ps1
