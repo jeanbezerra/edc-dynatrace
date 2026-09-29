@@ -130,11 +130,11 @@ function Add-DataTile {
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
 # RUM Application Topology Comparison
 
-**Build: 2026-09-28-r3 - application hosts separated**
+**Build: 2026-09-28-r4 - classic application topology bridge**
 
 Read each layer from left to right: **UPSTREAM** on the left and **TARGET / DOWNSTREAM** on the right. The dashboard uses only the current Smartscape catalog and Dynatrace entity taxonomy; it does not scan user events, spans, logs, or metrics.
 
-Application-hosting classification uses `FRONTEND -> SERVICE -> PROCESS (web-server taxonomy) -> HOST`. Dependency hosts use `FRONTEND -> SERVICE -> HOST` and `FRONTEND -> SERVICE -> PROCESS -> HOST`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail.
+Application-hosting classification bridges the richer entity topology `APPLICATION -> SERVICE -> PROCESS_GROUP_INSTANCE` to Smartscape `PROCESS -> HOST`. Dependency hosts continue to use `FRONTEND -> SERVICE -> HOST` and `FRONTEND -> SERVICE -> PROCESS -> HOST`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail.
 '@
 
 Add-MarkdownTile -Id "section_configuration" -X 0 -Y 5 -Width 24 -Height 2 -Content @'
@@ -208,63 +208,151 @@ smartscapeNodes "FRONTEND"
 Add-MarkdownTile -Id "section_application_hosts" -X 0 -Y 25 -Width 24 -Height 2 -Content @'
 ## 03 - APPLICATION HOSTING HOSTS
 
-Hosts classified through the Dynatrace topology and technology taxonomy. Only services associated with the frontend that run on a process classified in `process.software_technologies.webserver` reach this table; no Apache, NGINX, IIS, or product name is hardcoded.
+Hosts classified through the Dynatrace entity topology and process technology taxonomy. This bridge is necessary because the Smartscape `FRONTEND calls SERVICE` edge can contain only browser/API dependencies in some Agentless environments. Web-server classification checks both the web-server module taxonomy and the OS-module taxonomy used by Dynatrace for Apache HTTPD, NGINX, and IIS.
 '@
 
-Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Application hosting hosts" -Description "Taxonomic path through a service and a process classified by Dynatrace as web-server technology; no RUM telemetry correlation." -X 0 -Y 27 -Width 12 -Height 11 -Query @'
-smartscapeNodes "FRONTEND"
-| filter name == $frontend_upstream
-| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
-| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward, fieldsKeep: {id, name, dt.service_detection.version, dt.service.sdv1_type}
-| filter isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0
-| traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward, fieldsKeep: {id, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver}
+Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Application hosting hosts" -Description "Entity-taxonomy bridge from the selected Application to its services, process instances, and web-server hosts; no RUM telemetry scan." -X 0 -Y 27 -Width 12 -Height 11 -Query @'
+fetch dt.entity.application
+| filter id in [
+    smartscapeNodes "FRONTEND"
+    | filter name == $frontend_upstream and isNotNull(id_classic)
+    | fields id_classic
+  ]
 | fields
-    `Host ID` = id,
-    `Host name` = name,
-    `Classic host ID` = id_classic,
-    `Host group` = dt.host_group.id,
-    `Hosting service ID` = dt.traverse.history[-2][id],
-    `Hosting service name` = dt.traverse.history[-2][name],
-    `Service detection version` = dt.traverse.history[-2][dt.service_detection.version],
-    `Service taxonomy` = dt.traverse.history[-2][dt.service.sdv1_type],
-    `Hosting process ID` = dt.traverse.history[-1][id],
-    `Hosting process name` = dt.traverse.history[-1][name],
-    `Process Group ID` = dt.traverse.history[-1][dt.process_group.id],
-    `Process Group name` = dt.traverse.history[-1][dt.process_group.detected_name],
-    `Web server technologies` = dt.traverse.history[-1][process.software_technologies.webserver],
-    `OS type` = os.type,
-    `OS name` = os.name,
-    `IP addresses` = host.ip,
-    `Last observed` = getEnd(lifetime)
+    application_id = id,
+    application_name = entity.name,
+    service_ids = calls[dt.entity.service]
+| expand service_id = service_ids
+| lookup [
+    fetch dt.entity.service
+    | fields
+        service_id = id,
+        service_name = entity.name,
+        service_type = serviceType,
+        process_instance_ids = runs_on[dt.entity.process_group_instance]
+  ], sourceField: service_id, lookupField: service_id, prefix: "service."
+| expand process_instance_id = service.process_instance_ids
+| lookup [
+    smartscapeNodes "PROCESS"
+    | filter isNotNull(id_classic)
+    | filter (isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0)
+        or process.software_technologies.os ~ "APACHE_HTTPD"
+        or process.software_technologies.os ~ "NGINX"
+        or process.software_technologies.os ~ "IIS"
+        or process.software_technologies.os ~ "IIS_APP_POOL"
+    | traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward,
+        fieldsKeep: {id, id_classic, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver, process.software_technologies.os}
+    | fields
+        classic_process_instance_id = dt.traverse.history[-1][id_classic],
+        process_id = dt.traverse.history[-1][id],
+        process_name = dt.traverse.history[-1][name],
+        process_group_id = dt.traverse.history[-1][dt.process_group.id],
+        process_group_name = dt.traverse.history[-1][dt.process_group.detected_name],
+        webserver_technologies = dt.traverse.history[-1][process.software_technologies.webserver],
+        os_technology_taxonomy = dt.traverse.history[-1][process.software_technologies.os],
+        host_id = id,
+        host_name = name,
+        classic_host_id = id_classic,
+        host_group = dt.host_group.id,
+        os_type = os.type,
+        os_name = os.name,
+        ip_addresses = host.ip,
+        last_observed = getEnd(lifetime)
+  ], sourceField: process_instance_id, lookupField: classic_process_instance_id, prefix: "hosting."
+| filter isNotNull(hosting.host_id)
+| fields
+    `Application ID` = application_id,
+    `Application name` = application_name,
+    `Host ID` = hosting.host_id,
+    `Host name` = hosting.host_name,
+    `Classic host ID` = hosting.classic_host_id,
+    `Host group` = hosting.host_group,
+    `Hosting service ID` = service.service_id,
+    `Hosting service name` = service.service_name,
+    `Service taxonomy` = service.service_type,
+    `Hosting process ID` = hosting.process_id,
+    `Hosting process name` = hosting.process_name,
+    `Process Group ID` = hosting.process_group_id,
+    `Process Group name` = hosting.process_group_name,
+    `Web server module taxonomy` = hosting.webserver_technologies,
+    `OS module taxonomy` = hosting.os_technology_taxonomy,
+    `OS type` = hosting.os_type,
+    `OS name` = hosting.os_name,
+    `IP addresses` = hosting.ip_addresses,
+    `Last observed` = hosting.last_observed
 | sort `Host name` asc, `Hosting process name` asc
 | limit 200
 '@
 
-Add-DataTile -Id "target_application_hosts" -Title "TARGET - Application hosting hosts" -Description "Taxonomic path through a service and a process classified by Dynatrace as web-server technology; no RUM telemetry correlation." -X 12 -Y 27 -Width 12 -Height 11 -Query @'
-smartscapeNodes "FRONTEND"
-| filter name == $frontend_target
-| traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
-| traverse edgeTypes: {runs_on}, targetTypes: {PROCESS}, direction: forward, fieldsKeep: {id, name, dt.service_detection.version, dt.service.sdv1_type}
-| filter isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0
-| traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward, fieldsKeep: {id, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver}
+Add-DataTile -Id "target_application_hosts" -Title "TARGET - Application hosting hosts" -Description "Entity-taxonomy bridge from the selected Application to its services, process instances, and web-server hosts; no RUM telemetry scan." -X 12 -Y 27 -Width 12 -Height 11 -Query @'
+fetch dt.entity.application
+| filter id in [
+    smartscapeNodes "FRONTEND"
+    | filter name == $frontend_target and isNotNull(id_classic)
+    | fields id_classic
+  ]
 | fields
-    `Host ID` = id,
-    `Host name` = name,
-    `Classic host ID` = id_classic,
-    `Host group` = dt.host_group.id,
-    `Hosting service ID` = dt.traverse.history[-2][id],
-    `Hosting service name` = dt.traverse.history[-2][name],
-    `Service detection version` = dt.traverse.history[-2][dt.service_detection.version],
-    `Service taxonomy` = dt.traverse.history[-2][dt.service.sdv1_type],
-    `Hosting process ID` = dt.traverse.history[-1][id],
-    `Hosting process name` = dt.traverse.history[-1][name],
-    `Process Group ID` = dt.traverse.history[-1][dt.process_group.id],
-    `Process Group name` = dt.traverse.history[-1][dt.process_group.detected_name],
-    `Web server technologies` = dt.traverse.history[-1][process.software_technologies.webserver],
-    `OS type` = os.type,
-    `OS name` = os.name,
-    `IP addresses` = host.ip,
-    `Last observed` = getEnd(lifetime)
+    application_id = id,
+    application_name = entity.name,
+    service_ids = calls[dt.entity.service]
+| expand service_id = service_ids
+| lookup [
+    fetch dt.entity.service
+    | fields
+        service_id = id,
+        service_name = entity.name,
+        service_type = serviceType,
+        process_instance_ids = runs_on[dt.entity.process_group_instance]
+  ], sourceField: service_id, lookupField: service_id, prefix: "service."
+| expand process_instance_id = service.process_instance_ids
+| lookup [
+    smartscapeNodes "PROCESS"
+    | filter isNotNull(id_classic)
+    | filter (isNotNull(process.software_technologies.webserver) and arraySize(process.software_technologies.webserver) > 0)
+        or process.software_technologies.os ~ "APACHE_HTTPD"
+        or process.software_technologies.os ~ "NGINX"
+        or process.software_technologies.os ~ "IIS"
+        or process.software_technologies.os ~ "IIS_APP_POOL"
+    | traverse edgeTypes: {runs_on}, targetTypes: {HOST}, direction: forward,
+        fieldsKeep: {id, id_classic, name, dt.process_group.id, dt.process_group.detected_name, process.software_technologies.webserver, process.software_technologies.os}
+    | fields
+        classic_process_instance_id = dt.traverse.history[-1][id_classic],
+        process_id = dt.traverse.history[-1][id],
+        process_name = dt.traverse.history[-1][name],
+        process_group_id = dt.traverse.history[-1][dt.process_group.id],
+        process_group_name = dt.traverse.history[-1][dt.process_group.detected_name],
+        webserver_technologies = dt.traverse.history[-1][process.software_technologies.webserver],
+        os_technology_taxonomy = dt.traverse.history[-1][process.software_technologies.os],
+        host_id = id,
+        host_name = name,
+        classic_host_id = id_classic,
+        host_group = dt.host_group.id,
+        os_type = os.type,
+        os_name = os.name,
+        ip_addresses = host.ip,
+        last_observed = getEnd(lifetime)
+  ], sourceField: process_instance_id, lookupField: classic_process_instance_id, prefix: "hosting."
+| filter isNotNull(hosting.host_id)
+| fields
+    `Application ID` = application_id,
+    `Application name` = application_name,
+    `Host ID` = hosting.host_id,
+    `Host name` = hosting.host_name,
+    `Classic host ID` = hosting.classic_host_id,
+    `Host group` = hosting.host_group,
+    `Hosting service ID` = service.service_id,
+    `Hosting service name` = service.service_name,
+    `Service taxonomy` = service.service_type,
+    `Hosting process ID` = hosting.process_id,
+    `Hosting process name` = hosting.process_name,
+    `Process Group ID` = hosting.process_group_id,
+    `Process Group name` = hosting.process_group_name,
+    `Web server module taxonomy` = hosting.webserver_technologies,
+    `OS module taxonomy` = hosting.os_technology_taxonomy,
+    `OS type` = hosting.os_type,
+    `OS name` = hosting.os_name,
+    `IP addresses` = hosting.ip_addresses,
+    `Last observed` = hosting.last_observed
 | sort `Host name` asc, `Hosting process name` asc
 | limit 200
 '@
@@ -472,7 +560,7 @@ $content = [ordered]@{
 }
 
 $document = [ordered]@{
-    name = "RUM Application Topology Comparison - build 2026-09-28-r3"
+    name = "RUM Application Topology Comparison - build 2026-09-28-r4"
     type = "dashboard"
     content = $content
 }
@@ -482,7 +570,7 @@ $contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.document.json"), $documentJson + "`n", $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.content.json"), $contentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r3.document.json"), $documentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r3.content.json"), $contentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r4.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r4.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated side-by-side topology dashboard with $($tiles.Count) tiles and $((Get-ChildItem -LiteralPath $queriesDirectory -Filter '*.dql' -File).Count) queries."

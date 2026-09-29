@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $contentPath)) {
 $document = Get-Content -LiteralPath $documentPath -Raw -Encoding utf8 | ConvertFrom-Json
 $content = $document.content
 
-if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r3") {
+if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r4") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard" -or $content.version -ne 21) {
@@ -97,13 +97,18 @@ foreach ($tileId in $requiredDataTiles) {
     if ($tile.query -notmatch [regex]::Escape($expectedVariable)) {
         Add-ValidationError "$tileId does not use $expectedVariable."
     }
-    if ($tile.query -notmatch '(?im)^smartscapeNodes\s+"FRONTEND"\s*$') {
+    if ($tileId -in @("upstream_application_hosts", "target_application_hosts")) {
+        if ($tile.query -notmatch '(?im)^fetch\s+dt\.entity\.application\s*$') {
+            Add-ValidationError "$tileId must start from the Application entity taxonomy."
+        }
+        if ($tile.query -match '(?im)^\s*fetch\s+(?:user\.events|user\.sessions|spans|logs|events|bizevents)') {
+            Add-ValidationError "$tileId must not scan telemetry."
+        }
+    }
+    elseif ($tile.query -notmatch '(?im)^smartscapeNodes\s+"FRONTEND"\s*$') {
         Add-ValidationError "$tileId must start from a FRONTEND Smartscape node."
     }
-    if ($tile.query -match '(?im)^\s*(fetch|timeseries|metrics)\s+') {
-        Add-ValidationError "$tileId must not scan telemetry."
-    }
-    if ($tile.query -match '\bdt\.entity\.') {
+    if ($tileId -notin @("upstream_application_hosts", "target_application_hosts") -and $tile.query -match '\bdt\.entity\.') {
         Add-ValidationError "$tileId uses a deprecated dt.entity field."
     }
     if ($tile.query -notmatch '(?im)^\s*\|\s*limit\s+\d+\s*$') {
@@ -134,19 +139,19 @@ foreach ($tileId in @("upstream_process_groups", "target_process_groups", "upstr
 
 foreach ($tileId in @("upstream_application_hosts", "target_application_hosts")) {
     $query = $content.tiles.$tileId.query
-    if ($query -notmatch 'edgeTypes:\s*\{calls\}' -or
-        $query -notmatch 'targetTypes:\s*\{SERVICE\}' -or
-        $query -notmatch 'targetTypes:\s*\{PROCESS\}' -or
+    if ($query -notmatch 'calls\[dt\.entity\.service\]' -or
+        $query -notmatch 'runs_on\[dt\.entity\.process_group_instance\]' -or
+        $query -notmatch '(?im)^\s*smartscapeNodes\s+"PROCESS"\s*$' -or
         $query -notmatch 'targetTypes:\s*\{HOST\}' -or
-        $query -notmatch 'arraySize\(process\.software_technologies\.webserver\)\s*>\s*0' -or
-        $query -notmatch 'dt\.traverse\.history\[-2\]\[dt\.service\.sdv1_type\]' -or
-        $query -notmatch 'dt\.traverse\.history\[-1\]\[process\.software_technologies\.webserver\]') {
-        Add-ValidationError "$tileId must map the taxonomic FRONTEND -> SERVICE -> web-server PROCESS -> HOST path."
+        $query -notmatch 'process\.software_technologies\.webserver' -or
+        $query -notmatch 'process\.software_technologies\.os\s*~\s*"APACHE_HTTPD"' -or
+        $query -notmatch 'classic_process_instance_id\s*=\s*dt\.traverse\.history\[-1\]\[id_classic\]') {
+        Add-ValidationError "$tileId must bridge APPLICATION -> SERVICE -> PROCESS_GROUP_INSTANCE to taxonomic PROCESS -> HOST."
     }
     if ($query -match '(?im)^\s*\|\s*append\s*\[') {
         Add-ValidationError "$tileId must not mix direct dependency hosts into application-host classification."
     }
-    foreach ($field in @('`Host ID`', '`Host name`', '`Hosting service ID`', '`Hosting service name`', '`Hosting process ID`', '`Hosting process name`', '`Process Group ID`', '`Process Group name`', '`Web server technologies`')) {
+    foreach ($field in @('`Application ID`', '`Application name`', '`Host ID`', '`Host name`', '`Hosting service ID`', '`Hosting service name`', '`Hosting process ID`', '`Hosting process name`', '`Process Group ID`', '`Process Group name`', '`Web server module taxonomy`', '`OS module taxonomy`')) {
         if ($query -notmatch [regex]::Escape($field)) {
             Add-ValidationError "$tileId is missing hosting evidence field $field."
         }
