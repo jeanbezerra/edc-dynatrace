@@ -31,7 +31,7 @@ foreach ($artifact in @(
     }
 }
 
-if ($document.name -ne "RUM Diagnostic Explorer - build 2026-09-28-r4") {
+if ($document.name -ne "RUM Diagnostic Explorer - build 2026-09-28-r5") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard") {
@@ -197,6 +197,26 @@ foreach ($frontendVariableKey in @("frontend_upstream", "frontend_target")) {
 $frontendTarget = @($content.variables | Where-Object { $_.key -eq "frontend_target" })
 if ($frontendTarget.Count -eq 1 -and $frontendTarget[0].input -notmatch 'name\s*!=\s*\$frontend_upstream') {
     Add-ValidationError "frontend_target must exclude the selected frontend_upstream."
+}
+
+$diagnosticMatrixQuery = $content.tiles.diagnostic_matrix.query
+if ($diagnosticMatrixQuery -notmatch 'target_url_in_other' -or
+    $diagnosticMatrixQuery -notmatch 'unexpected_target_frontends') {
+    Add-ValidationError "The diagnostic matrix must detect target URLs assigned to unrelated frontends."
+}
+
+$instrumentationQuery = $content.tiles.instrumentation_overlap.query
+foreach ($field in @('page.url.domain', 'view.url.domain', 'url.domain', 'Domains')) {
+    if ($instrumentationQuery -notmatch [regex]::Escape($field)) {
+        Add-ValidationError "Instrumentation ownership is missing environment evidence: $field"
+    }
+}
+
+$urlOwnershipQuery = $content.tiles.url_ownership.query
+if ($urlOwnershipQuery -match 'filter\s+in\(frontend\.name' -or
+    $urlOwnershipQuery -notmatch '`Observed domain`' -or
+    $urlOwnershipQuery -notmatch '`Instrumentation ID`') {
+    Add-ValidationError "URL ownership must inspect every frontend and expose domain plus instrumentation ID."
 }
 
 $unexpectedQueryFiles = @(Get-ChildItem -LiteralPath $queriesPath -Filter "*.dql" | Where-Object { $_.BaseName -notin $dataTiles.Name })

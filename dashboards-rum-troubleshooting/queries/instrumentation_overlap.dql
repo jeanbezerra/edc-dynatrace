@@ -1,15 +1,21 @@
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| fieldsAdd
+    observed_url = coalesce(page.url.full, view.url.full, url.full),
+    observed_domain = coalesce(page.url.domain, view.url.domain, url.domain)
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
+    or (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
+    or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false))
 | filter isNotNull(dt.rum.instrumentation.id)
 | summarize
     Events = count(),
     Sessions = countDistinct(dt.rum.session.id),
     Frontends = collectDistinct(frontend.name),
+    Domains = collectDistinct(observed_domain),
     `Agent types` = collectDistinct(dt.rum.agent.type),
     `First seen` = min(start_time),
     `Last seen` = max(start_time),
     by: {`Instrumentation ID` = dt.rum.instrumentation.id}
-| fieldsAdd Status = if(arraySize(Frontends) > 1, "CRITICAL", else: "OK")
-| fields Status, `Instrumentation ID`, Frontends, `Agent types`, Events, Sessions, `First seen`, `Last seen`
+| fieldsAdd Status = if(arraySize(Frontends) > 1, "CRITICAL", else: if(arraySize(Domains) > 1, "WARNING", else: "OK"))
+| fields Status, `Instrumentation ID`, Frontends, Domains, `Agent types`, Events, Sessions, `First seen`, `Last seen`
 | sort Events desc
 | limit 100

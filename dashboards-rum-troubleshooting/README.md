@@ -2,23 +2,30 @@
 
 ## Dashboard adicional: RUM Application Topology Comparison
 
-Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em sete camadas: configuracao, Applications/Frontends, hosts diretamente ligados ao Frontend, Process Groups de dependencia, Processes de dependencia, Services de dependencia e Hosts de dependencia.
+Este segundo dashboard preserva o diagnostico original e mostra UPSTREAM na esquerda e TARGET na direita em sete camadas: configuracao, Applications/Frontends, correlacao de hosts do Frontend, Process Groups de dependencia, Processes de dependencia, Services de dependencia e Hosts de dependencia.
 
-- `rum-topology-comparison-build-20260928-r5.content.json`: arquivo recomendado para importacao pela interface.
-- `rum-topology-comparison-build-20260928-r5.document.json`: envelope versionado para `dtctl apply`.
+- `rum-topology-comparison-build-20260928-r6.content.json`: arquivo recomendado para importacao pela interface.
+- `rum-topology-comparison-build-20260928-r6.document.json`: envelope versionado para `dtctl apply`.
 - `rum-topology-comparison.content.json` e `rum-topology-comparison.document.json`: aliases sem versao.
 - `topology-queries/*.dql`: quatorze consultas Smartscape, uma para cada tabela UPSTREAM/TARGET.
 - `build-topology-dashboard.ps1`: gera o dashboard adicional.
 - `validate-topology-dashboard.ps1`: valida estrutura, simetria, layout, fontes e limites.
 - `validate-topology-dql.ps1`: expande as variaveis e valida as quatorze DQLs; com `-RunTenant`, executa no tenant via `dtctl`.
 
-Importe `rum-topology-comparison-build-20260928-r5.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r5 - direct frontend hosts and restored dependencies`.
+Importe `rum-topology-comparison-build-20260928-r6.content.json` em **Dashboards -> Import dashboard** e confirme no primeiro card o texto `Build: 2026-09-28-r6 - Agentless web-tier correlation`.
 
-Todas as quatorze tabelas usam apenas entidades e topologia, sem scan de eventos RUM, spans, logs ou metricas. A camada **Frontend hosts - direct topology** consulta todas as arestas Smartscape e seleciona qualquer relacao direta `FRONTEND -> HOST` ou `HOST -> FRONTEND` realmente existente no tenant. O tipo, a direcao e a natureza estatica/dinamica da aresta ficam visiveis na tabela.
+Todas as quatorze tabelas usam apenas entidades e topologia, sem scan de eventos RUM, spans, logs ou metricas. A camada **Frontend hosts - correlated topology** consulta arestas diretas `FRONTEND -> HOST` ou `HOST -> FRONTEND` existentes no tenant. O modelo publico do Smartscape garante `FRONTEND -> SERVICE`, mas nao garante uma relacao direta com `HOST`; por isso uma tabela vazia nao prova que a aplicacao nao possui Apache de hospedagem.
 
 A visao de dependencias foi preservada em quatro secoes explicitas: Process Groups, Processes, Services e Hosts. A camada **Dependency hosts** combina `FRONTEND -> SERVICE -> HOST` e `FRONTEND -> SERVICE -> PROCESS -> HOST` e inclui APIs, gateways, proxies e demais dependencias. Process Group e apresentado a partir dos campos estaveis `dt.process_group.id` e `dt.process_group.detected_name` dos processos, pois nao existe um no `PROCESS_GROUP` separado no Smartscape on Grail.
 
-A secao direta nao presume que a relacao se chama `runs_on`, `belongs_to` ou qualquer outro nome. Ela mostra o que o catalogo topologico do proprio tenant declara entre o Frontend e o Host, sem misturar os caminhos de dependencia via Service.
+A secao de correlacao nao presume o nome da relacao e nao mistura caminhos de dependencia via Service. Para provar o Apache, process group e host que entregaram uma pagina, mantenha a correlacao RUM do web tier ativa e use o tile **Servers observed for the selected trace** do dashboard principal com um page-load trace exato.
+
+### Configuracao correta para JavaScript Agentless/manual em Apache monitorado
+
+- Mantenha `builtin:rum.processgroup.enable = true` no process group Apache de entrada.
+- Na aplicacao/frontend, crie uma regra `builtin:rum.web.custom-injection-rules` com `rule = DoNotInject` para as paginas que ja carregam o JavaScript manualmente.
+- Garanta apenas um snippet RUM no HTML e valide que o `dt.rum.instrumentation.id` pertence ao frontend correto.
+- Nao use o desligamento de RUM do process group como mecanismo para impedir a segunda injecao: isso tambem remove entrega do codigo, tratamento de beacons, `Server-Timing` e correlacao frontend/backend.
 
 ```powershell
 .\build-topology-dashboard.ps1
@@ -36,12 +43,12 @@ Dashboard técnico para comparar dois frontends web encadeados, independentement
 frontend_upstream -> navegação/redirecionamento -> frontend_target -> XHR/fetch -> backend
 ```
 
-O cenário padrão considera que ambos já utilizaram RUM Agentless, mas a injeção do frontend superior foi desabilitada para evitar que ela sobrescreva ou capture a instrumentação da aplicação alvo.
+O cenário padrão considera que ambos já utilizaram RUM Agentless. Quando o frontend superior não deve coletar, remova/desabilite sua instrumentação no nível do frontend. Em servidores Apache que continuam servindo páginas monitoradas, mantenha o RUM do process group ativo e use `DoNotInject` para impedir somente a injeção automática.
 
 ## Artefatos
 
-- `rum-diagnostic-explorer-build-20260928-r4.content.json`: artefato versionado recomendado para importar pela interface do Dashboards.
-- `rum-diagnostic-explorer-build-20260928-r4.document.json`: envelope versionado para `dtctl apply`.
+- `rum-diagnostic-explorer-build-20260928-r5.content.json`: artefato versionado recomendado para importar pela interface do Dashboards.
+- `rum-diagnostic-explorer-build-20260928-r5.document.json`: envelope versionado para `dtctl apply`.
 - `rum-diagnostic-explorer.content.json`: alias sem versão para automações existentes.
 - `rum-diagnostic-explorer.document.json`: alias sem versão para automações existentes.
 - `queries/*.dql`: as oito consultas utilizadas pelos tiles.
@@ -76,7 +83,7 @@ Essas proteções limitam o custo por execução, mas não tornam consultas repe
 | `frontend_target` | Seletor automático do Frontend/Web Application que deve coletar RUM e replay. |
 | `upstream_rum_expected` | `DISABLED` no cenário recomendado; use `ENABLED` quando os dois frontends devem coletar. |
 | `upstream_url` | Fragmento estável de domínio ou caminho do frontend superior. |
-| `target_url` | Fragmento estável de domínio ou caminho da aplicação alvo. |
+| `target_url` | Fragmento estável de domínio ou caminho da aplicação alvo; use um trecho comum a homologação e produção para comparar os domínios. |
 | `session_id` | Drill-down opcional de uma sessão. |
 | `request_url` | Filtro opcional de domínio, caminho ou endpoint. |
 | `trace_id` | Trace ID específico copiado do tile de requests. |
@@ -88,8 +95,8 @@ Os dois seletores usam nós Smartscape `FRONTEND`. Esse tipo também representa 
 1. Selecione dois Frontends/Web Applications diferentes e mantenha a janela em 15 minutos.
 2. Use `upstream_rum_expected = DISABLED` se o Agentless superior foi removido.
 3. Confira a matriz: nesse modo, qualquer evento recente do frontend superior é `CRITICAL`.
-4. Confira se existe exatamente um instrumentation ID no frontend alvo.
-5. Preencha as URLs e procure URL `TARGET` atribuída ao frontend superior.
+4. Confira os domínios observados para cada instrumentation ID; homologação e produção com o mesmo ID aparecem juntas.
+5. Preencha as URLs e procure URL `TARGET` atribuída ao frontend superior ou a qualquer frontend não relacionado.
 6. Abra uma session ID recente na timeline.
 7. Confira requests do frontend alvo e copie um `Sample trace ID`.
 8. Compare a tabela de serviços ligados aos dois frontends.
@@ -104,7 +111,9 @@ Quando o RUM superior deveria estar desabilitado:
 | Zero eventos recentes no upstream e eventos no target | Estado esperado após a remoção da instrumentação superior. |
 | Eventos continuam chegando no upstream | A alteração não teve efeito completo dentro da janela observada. Investigue cache, páginas antigas abertas, outra origem de injeção e prioridade de regras. |
 | Mesmo instrumentation ID aparece nos dois frontends | Forte evidência de sobreposição ou atribuição inconsistente. |
+| Mesmo instrumentation ID aparece nos domínios de homologação e produção | Os dois ambientes carregam o mesmo snippet/configuração; confirme se a separação é intencional. |
 | URL alvo aparece no upstream | Forte evidência de mapping/detection incorreto ou agente superior ainda ativo. |
+| URL alvo aparece em terceiro frontend | Forte evidência de snippet copiado, HTML/cache antigo, segunda injeção ou regra de detecção com prioridade incorreta. |
 | Mais de um instrumentation ID no target | Revisar múltiplas formas de injeção, configuração residual e regras concorrentes. |
 | Sessões `TARGET_ONLY` | Esperado quando o upstream não coleta mais RUM. |
 | Sessões `CONTINUOUS` com upstream desabilitado | Pode indicar clientes/páginas ainda executando a instrumentação superior. Não prova sozinho a origem. |
@@ -116,8 +125,8 @@ Eventos dentro da janela podem ter sido produzidos antes de uma mudança recente
 | Tile | Finalidade |
 |---|---|
 | Agentless checks - Status - Evidence | Consolida o estado esperado, volume, IDs, mapping, requests e cobertura de trace em um scan. |
-| Instrumentation IDs across the frontend pair | Mostra IDs compartilhados entre os dois frontends. |
-| Configured URL ownership | Compara frontend esperado e observado para as URLs configuradas. |
+| Instrumentation IDs across frontends and domains | Mostra IDs, frontends e domínios, expondo mistura entre homologação e produção. |
+| URL, environment, and frontend ownership | Compara frontend esperado e observado em todos os frontends, inclusive aplicações não selecionadas. |
 | Recent sessions across the frontend pair | Classifica até 100 sessões recentes. |
 | Timeline for one session | Reconstrói uma session ID específica. |
 | Requests emitted by the target frontend | Consolida chamadas, falhas, latência e exemplos de trace/session ID. |
@@ -128,7 +137,7 @@ Eventos dentro da janela podem ter sido produzidos antes de uma mudança recente
 
 ### Interface
 
-Importe `rum-diagnostic-explorer-build-20260928-r4.content.json` em **Dashboards -> Import dashboard**. Depois de abrir o dashboard importado, confirme no primeiro card o texto `Build: 2026-09-28-r4 - named optional parameters`. O nome novo evita confundir esta importação com uma cópia anterior.
+Importe `rum-diagnostic-explorer-build-20260928-r5.content.json` em **Dashboards -> Import dashboard**. Depois de abrir o dashboard importado, confirme no primeiro card o texto `Build: 2026-09-28-r5 - cross-environment ownership`. O nome novo evita confundir esta importação com uma cópia anterior.
 
 ### dtctl
 
@@ -171,6 +180,6 @@ Validação das oito DQLs dos tiles e das duas consultas automáticas de variáv
 - URL mascarada pode exigir fragmentos preservados ou comparação por `page.name`/`view.name`.
 - Ausência de `trace.id` é `Correlation not observed`; não prova que o backend não processou a request.
 - A consulta de spans usa `toUid($trace_id)` e exige que o trace esteja dentro da janela selecionada.
-- Frontends não possuem servidor de execução próprio no modelo RUM Agentless. A tabela de servidores mostra hosts backend observados no trace, relacionados aos serviços pelos quais a request passou.
+- O modelo Smartscape publico nao garante uma aresta direta `FRONTEND -> HOST`. A prova do Apache que entregou a pagina depende de frontend/backend correlation e de um page-load trace; sem isso, listar candidatos por tecnologia nao comprova pertencimento a um frontend.
 - A relação Frontend/Web Application -> serviço depende da presença e da direção de arestas `calls` no Smartscape do tenant. Nomes duplicados permanecem distinguíveis pelos IDs exibidos.
 - Se o scan limit de 2 GB for atingido, reduza a janela ou refine URL/request. Não aumente o limite como primeira ação.

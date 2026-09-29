@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $contentPath)) {
 $document = Get-Content -LiteralPath $documentPath -Raw -Encoding utf8 | ConvertFrom-Json
 $content = $document.content
 
-if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r5") {
+if ($document.name -ne "RUM Application Topology Comparison - build 2026-09-28-r6") {
     Add-ValidationError "Unexpected dashboard name: $($document.name)"
 }
 if ($document.type -ne "dashboard" -or $content.version -ne 21) {
@@ -161,12 +161,12 @@ foreach ($tileId in @("upstream_application_hosts", "target_application_hosts"))
 
 $expectedSectionOrder = [ordered]@{
     section_configuration = 5
-    section_applications = 16
-    section_application_hosts = 25
-    section_process_groups = 38
-    section_processes = 49
-    section_services = 62
-    section_dependency_hosts = 75
+    section_applications = 19
+    section_application_hosts = 28
+    section_process_groups = 43
+    section_processes = 54
+    section_services = 67
+    section_dependency_hosts = 80
 }
 foreach ($entry in $expectedSectionOrder.GetEnumerator()) {
     $layout = $content.layouts.($entry.Key)
@@ -197,6 +197,19 @@ foreach ($tileId in @("upstream_services", "target_services")) {
     if ($query -notmatch 'edgeTypes:\s*\{calls\}' -or $query -notmatch 'targetTypes:\s*\{SERVICE\}') {
         Add-ValidationError "$tileId must map FRONTEND -> SERVICE through calls."
     }
+}
+
+$configurationGuidance = $content.tiles.section_configuration.content
+foreach ($requiredText in @("builtin:rum.processgroup", "enable=true", "builtin:rum.web.custom-injection-rules", "DoNotInject", "Server-Timing")) {
+    if ($configurationGuidance -notmatch [regex]::Escape($requiredText)) {
+        Add-ValidationError "Configuration guidance is missing: $requiredText"
+    }
+}
+
+$hostGuidance = $content.tiles.section_application_hosts.content
+if ($hostGuidance -notmatch 'does not guarantee a direct' -or
+    $hostGuidance -notmatch 'exact page-load trace') {
+    Add-ValidationError "Frontend-host guidance must state the Smartscape limitation and correlated-trace fallback."
 }
 
 for ($i = 0; $i -lt $layoutProperties.Count; $i++) {
@@ -247,7 +260,7 @@ if ($errors.Count -gt 0) {
     MarkdownTiles = $markdownTiles.Count
     Queries = $queryFiles.Count
     Layout = "24 columns; UPSTREAM left; TARGET right; no overlaps"
-    DataSources = "Smartscape nodes, edges, and traversal only"
+    DataSources = "Smartscape nodes, edges, and traversal; Settings API guidance only"
     TelemetryScans = 0
     ScanLimitPerTile = "1 GB"
 }

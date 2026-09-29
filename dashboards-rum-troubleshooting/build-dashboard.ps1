@@ -133,9 +133,9 @@ function Add-DataTile {
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
 # RUM Agentless Pair Diagnostic
 
-**Build: 2026-09-28-r4 - named optional parameters**
+**Build: 2026-09-28-r5 - cross-environment ownership**
 
-Compare any two web frontends in a chained navigation: **upstream -> target**. The default scenario assumes RUM was disabled on the upstream application and must remain active only on the target application.
+Compare any two web frontends in a chained navigation: **upstream -> target**. The dashboard now also exposes homologation and production domains that report through the same instrumentation ID, including URLs assigned to an unrelated frontend.
 
 > Cost guard: every telemetry query ignores a larger global timeframe and is capped by `analysis_window_minutes` at 15, 30, or 60 minutes. Default: 15 minutes.
 '@
@@ -143,23 +143,21 @@ Compare any two web frontends in a chained navigation: **upstream -> target**. T
 Add-MarkdownTile -Id "configuration" -X 0 -Y 5 -Width 24 -Height 4 -Content @'
 ### Required setup
 
-Select `frontend_upstream` and `frontend_target` from the automatic Frontend/Web Application catalog. Set `upstream_rum_expected` to `DISABLED` when the upstream Agentless injection was removed. URL fragments are optional but strongly recommended for mapping checks. Use `session_id`, `request_url`, and `trace_id` only for drill-down.
+Select `frontend_upstream` and `frontend_target` from the automatic catalog. Use a stable `target_url` fragment shared by homologation and production when you need to expose both domains. Keep RUM enabled on the Apache process group for frontend/backend correlation; suppress only automatic JavaScript injection with an application-level `DoNotInject` rule when the page already contains the Agentless/manual tag. Use `session_id`, `request_url`, and `trace_id` only for drill-down.
 '@
 
 Add-MarkdownTile -Id "section_status" -X 0 -Y 9 -Width 24 -Height 2 -Content @'
 ## 01 - Agentless state and diagnostic matrix
 
-Checks whether the upstream frontend is still collecting, whether the target is collecting, where the target URL is mapped, instrumentation cardinality, request production, and trace coverage.
+Checks whether the upstream frontend is still collecting, whether the target is collecting, whether the target URL was assigned to upstream or any unrelated frontend, instrumentation cardinality, request production, and trace coverage.
 '@
 
 Add-DataTile -Id "diagnostic_matrix" -Title "Agentless checks - Status - Evidence" -Description "One bounded user.events scan consolidates the core checks for the selected frontend pair." -Visualization "table" -X 0 -Y 11 -Width 24 -Height 10 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
 | fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
-    or (isNull(frontend.name) and (
-        (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
-        or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false))))
+    or (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
+    or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false))
 | summarize {
     upstream_events = countIf(frontend.name == $frontend_upstream),
     target_events = countIf(frontend.name == $frontend_target),
@@ -171,6 +169,8 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
     target_url_events = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false)),
     target_url_in_upstream = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and frontend.name == $frontend_upstream),
     target_url_in_target = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and frontend.name == $frontend_target),
+    target_url_in_other = countIf(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and isNotNull(frontend.name) and frontend.name != $frontend_upstream and frontend.name != $frontend_target),
+    unexpected_target_frontends = collectDistinct(if(stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false) and isNotNull(frontend.name) and frontend.name != $frontend_upstream and frontend.name != $frontend_target, frontend.name)),
     target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request),
     traced_target_requests = countIf(frontend.name == $frontend_target and characteristics.has_request and isNotNull(trace.id))
   }
@@ -192,9 +192,9 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
         Check = "Target URL assigned to target frontend",
         Status = if(stringLength($target_url) == 0, "NOT_CONFIGURED",
             else: if(target_url_events == 0, "WARNING",
-            else: if(target_url_in_upstream > 0, "CRITICAL",
+            else: if(target_url_in_upstream > 0 or target_url_in_other > 0, "CRITICAL",
             else: if(target_url_in_target > 0, "OK", else: "WARNING")))),
-        Evidence = concat(toString(target_url_in_target), "/", toString(target_url_events), " target URL events in target; ", toString(target_url_in_upstream), " in upstream")),
+        Evidence = concat(toString(target_url_in_target), "/", toString(target_url_events), " in target; ", toString(target_url_in_upstream), " in upstream; ", toString(target_url_in_other), " in unrelated frontends ", toString(unexpected_target_frontends))),
     record(
         Check = "Upstream instrumentation IDs",
         Status = if($upstream_rum_expected == "DISABLED" and upstream_id_count == 0, "OK",
@@ -227,31 +227,38 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 Add-MarkdownTile -Id "section_mapping" -X 0 -Y 21 -Width 24 -Height 2 -Content @'
 ## 02 - Instrumentation overlap and URL ownership
 
-The same instrumentation ID across both frontends or target URLs recorded under the upstream frontend strongly suggests overlapping injection, stale configuration, or detection-rule precedence.
+The same instrumentation ID across multiple domains exposes homologation/production mixing. A target URL recorded under upstream or any unrelated frontend points to a copied Agentless tag, competing injection, stale HTML/cache, or an auto-injected detection rule with higher precedence.
 '@
 
-Add-DataTile -Id "instrumentation_overlap" -Title "Instrumentation IDs across the frontend pair" -Description "CRITICAL means the same instrumentation ID was observed under more than one selected frontend." -Visualization "table" -X 0 -Y 23 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "instrumentation_overlap" -Title "Instrumentation IDs across frontends and domains" -Description "CRITICAL means one ID appeared under multiple frontends; WARNING means one ID appeared on multiple domains and requires environment review." -Visualization "table" -X 0 -Y 23 -Width 12 -Height 9 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
+| fieldsAdd
+    observed_url = coalesce(page.url.full, view.url.full, url.full),
+    observed_domain = coalesce(page.url.domain, view.url.domain, url.domain)
 | filter in(frontend.name, array($frontend_upstream, $frontend_target))
+    or (stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
+    or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false))
 | filter isNotNull(dt.rum.instrumentation.id)
 | summarize
     Events = count(),
     Sessions = countDistinct(dt.rum.session.id),
     Frontends = collectDistinct(frontend.name),
+    Domains = collectDistinct(observed_domain),
     `Agent types` = collectDistinct(dt.rum.agent.type),
     `First seen` = min(start_time),
     `Last seen` = max(start_time),
     by: {`Instrumentation ID` = dt.rum.instrumentation.id}
-| fieldsAdd Status = if(arraySize(Frontends) > 1, "CRITICAL", else: "OK")
-| fields Status, `Instrumentation ID`, Frontends, `Agent types`, Events, Sessions, `First seen`, `Last seen`
+| fieldsAdd Status = if(arraySize(Frontends) > 1, "CRITICAL", else: if(arraySize(Domains) > 1, "WARNING", else: "OK"))
+| fields Status, `Instrumentation ID`, Frontends, Domains, `Agent types`, Events, Sessions, `First seen`, `Last seen`
 | sort Events desc
 | limit 100
 '@
 
-Add-DataTile -Id "url_ownership" -Title "Configured URL ownership" -Description "Groups by configured URL scope instead of full URLs to control cardinality and expose cross-mapping." -Visualization "table" -X 12 -Y 23 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "url_ownership" -Title "URL, environment, and frontend ownership" -Description "Reads configured URLs across every frontend, so assignment to an unrelated application is not hidden by the selected pair." -Visualization "table" -X 12 -Y 23 -Width 12 -Height 9 -Query @'
 fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquote), unit: "m")
-| filter in(frontend.name, array($frontend_upstream, $frontend_target)) or isNull(frontend.name)
-| fieldsAdd observed_url = coalesce(page.url.full, view.url.full, url.full)
+| fieldsAdd
+    observed_url = coalesce(page.url.full, view.url.full, url.full),
+    observed_domain = coalesce(page.url.domain, view.url.domain, url.domain, "(unknown)")
 | filter isNotNull(observed_url)
     and ((stringLength($upstream_url) > 0 and contains(observed_url, $upstream_url:triplequote, caseSensitive: false))
       or (stringLength($target_url) > 0 and contains(observed_url, $target_url:triplequote, caseSensitive: false)))
@@ -262,13 +269,12 @@ fetch user.events, from: now() - duration(toLong($analysis_window_minutes:noquot
 | summarize
     Events = count(),
     Sessions = countDistinct(dt.rum.session.id),
-    `Instrumentation IDs` = collectDistinct(dt.rum.instrumentation.id),
     `Sample URL` = takeAny(observed_url),
-    by: {`URL scope`, `Expected frontend`, `Observed frontend`}
+    by: {`URL scope`, `Observed domain` = observed_domain, `Expected frontend`, `Observed frontend`, `Instrumentation ID` = dt.rum.instrumentation.id}
 | fieldsAdd Status = if(`Observed frontend` == `Expected frontend`, "OK", else: "CRITICAL")
-| fields Status, `URL scope`, `Expected frontend`, `Observed frontend`, Events, Sessions, `Instrumentation IDs`, `Sample URL`
+| fields Status, `URL scope`, `Observed domain`, `Expected frontend`, `Observed frontend`, `Instrumentation ID`, Events, Sessions, `Sample URL`
 | sort Events desc
-| limit 50
+| limit 100
 '@
 
 Add-MarkdownTile -Id "section_sessions" -X 0 -Y 32 -Width 24 -Height 2 -Content @'
@@ -404,7 +410,7 @@ fetch spans, from: now() - duration(toLong($analysis_window_minutes:noquote), un
 Add-MarkdownTile -Id "footer" -X 0 -Y 68 -Width 24 -Height 5 -Content @'
 ### Recommended decision order
 
-1. With upstream expected `DISABLED`, confirm zero recent upstream events. 2. Confirm exactly one target instrumentation ID. 3. Check whether target URLs still map to upstream. 4. Inspect a recent session. 5. Inspect target requests. 6. Compare the linked services. 7. Copy one trace ID to prove which service, host, and process handled the request. A non-zero upstream result after removal is evidence that the change did not fully take effect, not proof of where stale injection remains.
+1. Compare domains listed for each instrumentation ID. 2. Confirm that the target URL maps only to the intended frontend, including rows outside the selected pair. 3. Keep RUM enabled on the Apache process group and use `DoNotInject` to prevent duplicate JavaScript. 4. Inspect a recent session. 5. Inspect target requests. 6. Copy one page-load or request trace ID to prove which service, process group, and host served it. Old browser tabs and cached HTML can continue reporting the previous ID for a while.
 '@
 
 $variables = @(
@@ -463,7 +469,7 @@ $content = [ordered]@{
 }
 
 $document = [ordered]@{
-    name = "RUM Diagnostic Explorer - build 2026-09-28-r4"
+    name = "RUM Diagnostic Explorer - build 2026-09-28-r5"
     type = "dashboard"
     content = $content
 }
@@ -473,7 +479,7 @@ $contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.document.json"), $documentJson + "`n", $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer.content.json"), $contentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r4.document.json"), $documentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r4.content.json"), $contentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r5.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-diagnostic-explorer-build-20260928-r5.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated cost-bounded dashboard files and $($tiles.Count) tile definitions."

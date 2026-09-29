@@ -130,27 +130,27 @@ function Add-DataTile {
 Add-MarkdownTile -Id "intro" -X 0 -Y 0 -Width 24 -Height 5 -Content @'
 # RUM Application Topology Comparison
 
-**Build: 2026-09-28-r5 - direct frontend hosts and restored dependencies**
+**Build: 2026-09-28-r6 - Agentless web-tier correlation**
 
 Read each layer from left to right: **UPSTREAM** on the left and **TARGET / DOWNSTREAM** on the right. The dashboard uses only the current Smartscape catalog and Dynatrace entity taxonomy; it does not scan user events, spans, logs, or metrics.
 
-Section 03 reads every direct Smartscape edge between the selected `FRONTEND` and `HOST`, in either direction, without assuming an edge name. Dependency layers remain separate: Process Groups, Processes, Services, and Hosts reached through `FRONTEND -> SERVICE`. Process groups are derived from the stable process fields `dt.process_group.id` and `dt.process_group.detected_name` because Process Group is not a separate node in Smartscape on Grail.
+The public Smartscape model guarantees `FRONTEND -> SERVICE`, but it does not guarantee a direct `FRONTEND -> HOST` relation. Section 03 therefore shows tenant-specific direct edges when they exist and never labels API dependency hosts as frontend hosting hosts. Use the diagnostic dashboard with an exact correlated page-load trace to prove the Apache process and host.
 '@
 
-Add-MarkdownTile -Id "section_configuration" -X 0 -Y 5 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_configuration" -X 0 -Y 5 -Width 24 -Height 5 -Content @'
 ## 01 - FRONTEND CONFIGURATION
 
-Current RUM configuration and catalog lifecycle for each selected frontend.
+For pages that already contain the Agentless/manual JavaScript, keep RUM enabled on the entry Apache process group (`builtin:rum.processgroup`, `enable=true`) and add an application-scoped custom injection rule with `rule=DoNotInject` (`builtin:rum.web.custom-injection-rules`). This prevents a second script while preserving JavaScript delivery, beacon handling, `Server-Timing`, and frontend/backend correlation. Smartscape DQL exposes the frontend catalog state below, but not those Settings 2.0 values; verify both schemas in Settings or through the Settings API.
 '@
 
-Add-DataTile -Id "upstream_configuration" -Title "UPSTREAM - Frontend configuration" -Description "Current Smartscape configuration for the selected upstream frontend." -X 0 -Y 7 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "upstream_configuration" -Title "UPSTREAM - Frontend catalog state" -Description "Frontend catalog state only; process-group RUM and custom injection rules require Settings 2.0 validation." -X 0 -Y 10 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | fields
     `Frontend ID` = id,
     `Frontend name` = name,
     `Frontend type` = frontend.type,
-    `RUM enabled` = dt.rum.instrumentation.rum.enabled,
+    `Frontend RUM enabled (catalog)` = dt.rum.instrumentation.rum.enabled,
     `Instrumentation ID` = dt.rum.instrumentation.id,
     `Deleted at` = frontend.deletion_time,
     `First observed` = getStart(lifetime),
@@ -159,14 +159,14 @@ smartscapeNodes "FRONTEND"
 | limit 20
 '@
 
-Add-DataTile -Id "target_configuration" -Title "TARGET - Frontend configuration" -Description "Current Smartscape configuration for the selected target frontend." -X 12 -Y 7 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "target_configuration" -Title "TARGET - Frontend catalog state" -Description "Frontend catalog state only; process-group RUM and custom injection rules require Settings 2.0 validation." -X 12 -Y 10 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | fields
     `Frontend ID` = id,
     `Frontend name` = name,
     `Frontend type` = frontend.type,
-    `RUM enabled` = dt.rum.instrumentation.rum.enabled,
+    `Frontend RUM enabled (catalog)` = dt.rum.instrumentation.rum.enabled,
     `Instrumentation ID` = dt.rum.instrumentation.id,
     `Deleted at` = frontend.deletion_time,
     `First observed` = getStart(lifetime),
@@ -175,13 +175,13 @@ smartscapeNodes "FRONTEND"
 | limit 20
 '@
 
-Add-MarkdownTile -Id "section_applications" -X 0 -Y 16 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_applications" -X 0 -Y 19 -Width 24 -Height 2 -Content @'
 ## 02 - APPLICATIONS / FRONTENDS
 
 The selected Web Application is represented by a `FRONTEND` node. Both Smartscape and Classic IDs are shown when available.
 '@
 
-Add-DataTile -Id "upstream_applications" -Title "UPSTREAM - Applications" -Description "Frontend/Web Application identity selected as upstream." -X 0 -Y 18 -Width 12 -Height 7 -Query @'
+Add-DataTile -Id "upstream_applications" -Title "UPSTREAM - Applications" -Description "Frontend/Web Application identity selected as upstream." -X 0 -Y 21 -Width 12 -Height 7 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | fields
@@ -193,7 +193,7 @@ smartscapeNodes "FRONTEND"
 | limit 20
 '@
 
-Add-DataTile -Id "target_applications" -Title "TARGET - Applications" -Description "Frontend/Web Application identity selected as target." -X 12 -Y 18 -Width 12 -Height 7 -Query @'
+Add-DataTile -Id "target_applications" -Title "TARGET - Applications" -Description "Frontend/Web Application identity selected as target." -X 12 -Y 21 -Width 12 -Height 7 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | fields
@@ -205,13 +205,13 @@ smartscapeNodes "FRONTEND"
 | limit 20
 '@
 
-Add-MarkdownTile -Id "section_application_hosts" -X 0 -Y 25 -Width 24 -Height 2 -Content @'
-## 03 - FRONTEND HOSTS - DIRECT TOPOLOGY
+Add-MarkdownTile -Id "section_application_hosts" -X 0 -Y 28 -Width 24 -Height 4 -Content @'
+## 03 - FRONTEND HOSTS - CORRELATED TOPOLOGY
 
-Every `HOST` connected directly to the selected `FRONTEND` in the tenant topology. The query checks both `FRONTEND -> HOST` and `HOST -> FRONTEND` and displays the actual relationship type and edge kind. It does not traverse services and therefore does not mix API or gateway dependency hosts into this table.
+Tenant-specific direct `FRONTEND <-> HOST` edges, when present. An empty result does not prove that the Angular frontend has no hosting server: the public Smartscape taxonomy documents only `FRONTEND -> SERVICE` and does not guarantee a direct host relation. Disabling RUM on the entry Apache process group also removes the correlation needed to prove the web tier. Re-enable process-group RUM, block only injection with `DoNotInject`, then use an exact page-load trace in the diagnostic dashboard to identify Apache process group and host. Dependency hosts remain separate below.
 '@
 
-Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Direct frontend hosts" -Description "All direct Smartscape edges between the selected upstream frontend and hosts, in both directions; no dependency traversal or telemetry scan." -X 0 -Y 27 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "upstream_application_hosts" -Title "UPSTREAM - Correlated frontend hosts" -Description "Best-effort tenant-specific direct Smartscape edges; an empty result requires correlated trace validation." -X 0 -Y 32 -Width 12 -Height 11 -Query @'
 smartscapeEdges "*"
 | filter source_type == "FRONTEND" and target_type == "HOST"
 | filter source_id in [
@@ -282,7 +282,7 @@ smartscapeEdges "*"
 | limit 200
 '@
 
-Add-DataTile -Id "target_application_hosts" -Title "TARGET - Direct frontend hosts" -Description "All direct Smartscape edges between the selected target frontend and hosts, in both directions; no dependency traversal or telemetry scan." -X 12 -Y 27 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "target_application_hosts" -Title "TARGET - Correlated frontend hosts" -Description "Best-effort tenant-specific direct Smartscape edges; an empty result requires correlated trace validation." -X 12 -Y 32 -Width 12 -Height 11 -Query @'
 smartscapeEdges "*"
 | filter source_type == "FRONTEND" and target_type == "HOST"
 | filter source_id in [
@@ -353,13 +353,13 @@ smartscapeEdges "*"
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_dependency_hosts" -X 0 -Y 75 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_dependency_hosts" -X 0 -Y 80 -Width 24 -Height 2 -Content @'
 ## 07 - DEPENDENCIES - HOSTS
 
 Hosts reached through every service associated with the frontend, including APIs, gateways, proxies, and other downstream dependencies. This layer explains the Sensedia-style hosts and is intentionally separate from the application-hosting evidence above.
 '@
 
-Add-DataTile -Id "upstream_hosts" -Title "UPSTREAM - Dependency hosts" -Description "All hosts reached through services associated with the upstream frontend; these are dependencies, not direct frontend-host edges." -X 0 -Y 77 -Width 12 -Height 10 -Query @'
+Add-DataTile -Id "upstream_hosts" -Title "UPSTREAM - Dependency hosts" -Description "All hosts reached through services associated with the upstream frontend; these are dependencies, not direct frontend-host edges." -X 0 -Y 82 -Width 12 -Height 10 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -387,7 +387,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_hosts" -Title "TARGET - Dependency hosts" -Description "All hosts reached through services associated with the target frontend; these are dependencies, not direct frontend-host edges." -X 12 -Y 77 -Width 12 -Height 10 -Query @'
+Add-DataTile -Id "target_hosts" -Title "TARGET - Dependency hosts" -Description "All hosts reached through services associated with the target frontend; these are dependencies, not direct frontend-host edges." -X 12 -Y 82 -Width 12 -Height 10 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -415,13 +415,13 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_process_groups" -X 0 -Y 38 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_process_groups" -X 0 -Y 43 -Width 24 -Height 2 -Content @'
 ## 04 - DEPENDENCIES - PROCESS GROUPS
 
 Process Group is a compatibility grouping derived from processes. The table keeps the Dynatrace Process Group ID and detected name visible for human reading.
 '@
 
-Add-DataTile -Id "upstream_process_groups" -Title "UPSTREAM - Dependency process groups" -Description "Process groups behind services called by the upstream frontend." -X 0 -Y 40 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "upstream_process_groups" -Title "UPSTREAM - Dependency process groups" -Description "Process groups behind services called by the upstream frontend." -X 0 -Y 45 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -435,7 +435,7 @@ smartscapeNodes "FRONTEND"
 | limit 100
 '@
 
-Add-DataTile -Id "target_process_groups" -Title "TARGET - Dependency process groups" -Description "Process groups behind services called by the target frontend." -X 12 -Y 40 -Width 12 -Height 9 -Query @'
+Add-DataTile -Id "target_process_groups" -Title "TARGET - Dependency process groups" -Description "Process groups behind services called by the target frontend." -X 12 -Y 45 -Width 12 -Height 9 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -449,13 +449,13 @@ smartscapeNodes "FRONTEND"
 | limit 100
 '@
 
-Add-MarkdownTile -Id "section_processes" -X 0 -Y 49 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_processes" -X 0 -Y 54 -Width 24 -Height 2 -Content @'
 ## 05 - DEPENDENCIES - PROCESSES
 
 Smartscape `PROCESS` nodes on which the directly called services run. The Process Group columns preserve the grouping context.
 '@
 
-Add-DataTile -Id "upstream_processes" -Title "UPSTREAM - Dependency processes" -Description "Processes supporting services called by the upstream frontend." -X 0 -Y 51 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "upstream_processes" -Title "UPSTREAM - Dependency processes" -Description "Processes supporting services called by the upstream frontend." -X 0 -Y 56 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -471,7 +471,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_processes" -Title "TARGET - Dependency processes" -Description "Processes supporting services called by the target frontend." -X 12 -Y 51 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "target_processes" -Title "TARGET - Dependency processes" -Description "Processes supporting services called by the target frontend." -X 12 -Y 56 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -487,13 +487,13 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-MarkdownTile -Id "section_services" -X 0 -Y 62 -Width 24 -Height 2 -Content @'
+Add-MarkdownTile -Id "section_services" -X 0 -Y 67 -Width 24 -Height 2 -Content @'
 ## 06 - DEPENDENCIES - SERVICES
 
 Services directly linked to each frontend by the stable Smartscape `calls` relationship.
 '@
 
-Add-DataTile -Id "upstream_services" -Title "UPSTREAM - Dependency services" -Description "Services directly called by the upstream frontend." -X 0 -Y 64 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "upstream_services" -Title "UPSTREAM - Dependency services" -Description "Services directly called by the upstream frontend." -X 0 -Y 69 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_upstream
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -508,7 +508,7 @@ smartscapeNodes "FRONTEND"
 | limit 200
 '@
 
-Add-DataTile -Id "target_services" -Title "TARGET - Dependency services" -Description "Services directly called by the target frontend." -X 12 -Y 64 -Width 12 -Height 11 -Query @'
+Add-DataTile -Id "target_services" -Title "TARGET - Dependency services" -Description "Services directly called by the target frontend." -X 12 -Y 69 -Width 12 -Height 11 -Query @'
 smartscapeNodes "FRONTEND"
 | filter name == $frontend_target
 | traverse edgeTypes: {calls}, targetTypes: {SERVICE}, direction: forward
@@ -556,7 +556,7 @@ $content = [ordered]@{
 }
 
 $document = [ordered]@{
-    name = "RUM Application Topology Comparison - build 2026-09-28-r5"
+    name = "RUM Application Topology Comparison - build 2026-09-28-r6"
     type = "dashboard"
     content = $content
 }
@@ -566,7 +566,7 @@ $contentJson = ($content | ConvertTo-Json -Depth 100).Replace("`r`n", "`n")
 
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.document.json"), $documentJson + "`n", $utf8NoBom)
 [System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison.content.json"), $contentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r5.document.json"), $documentJson + "`n", $utf8NoBom)
-[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r5.content.json"), $contentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r6.document.json"), $documentJson + "`n", $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $outputDirectory "rum-topology-comparison-build-20260928-r6.content.json"), $contentJson + "`n", $utf8NoBom)
 
 Write-Host "Generated side-by-side topology dashboard with $($tiles.Count) tiles and $((Get-ChildItem -LiteralPath $queriesDirectory -Filter '*.dql' -File).Count) queries."
