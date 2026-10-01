@@ -1,0 +1,197 @@
+# Template Monaco Account Management.
+# Substitua REPLACE_WITH_PROD_ENVIRONMENT_ID antes de validar ou implantar.
+# Para grupos gerenciados por SCIM, crie os grupos no IdP e replique apenas os
+# bindings abaixo pela UI/API, pois o IdP e o owner do objeto grupo.
+
+groups:
+  - name: PTO-DT-PRD-ADMINS
+    id: pto-dt-prd-admins
+    description: Administradores tecnicos do ambiente Dynatrace de producao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy: Admin User
+          - policy: Data Processing and Storage
+          - policy: All Grail data read access
+
+  - name: PTO-DT-PRD-SRE-CORPORATIVO
+    id: pto-dt-prd-sre-corporativo
+    description: SRE corporativo com visibilidade transversal e sem administracao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-sre-base
+          - policy:
+              type: reference
+              id: pto-prod-observability-data-read
+          - policy: Settings Reader
+
+  - name: PTO-DT-PRD-SRE-PORTO-SEGUROS
+    id: pto-dt-prd-sre-porto-seguros
+    description: SRE da vertical Porto Seguros no ambiente de producao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-sre-base
+            boundaries:
+              - type: reference
+                id: pto-prod-seguros-classic
+          - policy:
+              type: reference
+              id: pto-prod-observability-data-read
+            boundaries:
+              - type: reference
+                id: pto-prod-seguros-grail
+
+  - name: PTO-DT-PRD-SRE-PORTO-SAUDE
+    id: pto-dt-prd-sre-porto-saude
+    description: SRE da vertical Porto Saude no ambiente de producao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-sre-base
+            boundaries:
+              - type: reference
+                id: pto-prod-saude-classic
+          - policy:
+              type: reference
+              id: pto-prod-observability-data-read
+            boundaries:
+              - type: reference
+                id: pto-prod-saude-grail
+
+  - name: PTO-DT-PRD-SRE-PORTO-SERVICOS
+    id: pto-dt-prd-sre-porto-servicos
+    description: SRE da vertical Porto Servicos no ambiente de producao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-sre-base
+            boundaries:
+              - type: reference
+                id: pto-prod-servicos-classic
+          - policy:
+              type: reference
+              id: pto-prod-observability-data-read
+            boundaries:
+              - type: reference
+                id: pto-prod-servicos-grail
+
+  - name: PTO-DT-PRD-SRE-PORTO-BANK
+    id: pto-dt-prd-sre-porto-bank
+    description: SRE da vertical Porto Bank no ambiente de producao.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-sre-base
+            boundaries:
+              - type: reference
+                id: pto-prod-bank-classic
+          - policy:
+              type: reference
+              id: pto-prod-observability-data-read
+            boundaries:
+              - type: reference
+                id: pto-prod-bank-grail
+
+  - name: PTO-DT-PRD-AUTORES-DOCUMENTOS
+    id: pto-dt-prd-autores-documentos
+    description: Entitlement aditivo para criar e colaborar em dashboards e notebooks.
+    environments:
+      - environment: REPLACE_WITH_PROD_ENVIRONMENT_ID
+        policies:
+          - policy:
+              type: reference
+              id: pto-prod-document-author
+
+policies:
+  - name: PTO - PROD - SRE Base
+    id: pto-prod-sre-base
+    level:
+      type: account
+    description: Capacidades operacionais basicas sem escrita administrativa nem leitura de dados.
+    policy: |-
+      ALLOW app-engine:apps:run, app-engine:functions:run, app-engine:edge-connects:read;
+      ALLOW hub:catalog:read;
+      ALLOW unified-analysis:screen-definition:read;
+      ALLOW state:user-app-states:read, state:user-app-states:write, state:user-app-states:delete;
+      ALLOW document:documents:read, document:environment-shares:read, document:direct-shares:read;
+      ALLOW davis:analyzers:read, davis:analyzers:execute;
+      ALLOW storage:bucket-definitions:read, storage:fieldset-definitions:read, storage:filter-segments:read;
+      ALLOW environment:roles:viewer, environment:roles:logviewer;
+      ALLOW platform-management:effective-permissions:resolve, platform-management:environments:read;
+
+  - name: PTO - PROD - Observability Data Read
+    id: pto-prod-observability-data-read
+    level:
+      type: account
+    description: Leitura de dados operacionais; exclui Security, BizEvents, system tables e Session Replay.
+    policy: |-
+      ALLOW storage:buckets:read WHERE storage:table-name IN ("logs", "metrics", "events", "spans", "application.snapshots", "user.events", "user.sessions");
+      ALLOW storage:logs:read;
+      ALLOW storage:metrics:read;
+      ALLOW storage:events:read;
+      ALLOW storage:spans:read;
+      ALLOW storage:application.snapshots:read;
+      ALLOW storage:entities:read;
+      ALLOW storage:smartscape:read;
+      ALLOW storage:user.events:read;
+      ALLOW storage:user.sessions:read;
+
+  - name: PTO - PROD - Document Author
+    id: pto-prod-document-author
+    level:
+      type: account
+    description: Criacao, edicao e compartilhamento de dashboards e notebooks sem document admin.
+    policy: |-
+      ALLOW app-engine:apps:run, app-engine:functions:run, app-engine:edge-connects:read;
+      ALLOW hub:catalog:read;
+      ALLOW state:user-app-states:read, state:user-app-states:write, state:user-app-states:delete;
+      ALLOW davis:analyzers:read, davis:analyzers:execute;
+      ALLOW document:documents:read, document:documents:write, document:documents:delete;
+      ALLOW document:trash.documents:read, document:trash.documents:restore, document:trash.documents:delete;
+      ALLOW document:environment-shares:read, document:environment-shares:write, document:environment-shares:claim, document:environment-shares:delete;
+      ALLOW document:direct-shares:read, document:direct-shares:write, document:direct-shares:delete;
+
+boundaries:
+  - id: pto-prod-seguros-classic
+    name: PTO - PROD - Porto Seguros - Classic
+    query: environment:management-zone = "PROD - Porto Seguros";
+
+  - id: pto-prod-seguros-grail
+    name: PTO - PROD - Porto Seguros - Grail
+    query: storage:dt.security_context = "porto/prod/seguros";
+
+  - id: pto-prod-saude-classic
+    name: PTO - PROD - Porto Saude - Classic
+    query: environment:management-zone = "PROD - Porto Saude";
+
+  - id: pto-prod-saude-grail
+    name: PTO - PROD - Porto Saude - Grail
+    query: storage:dt.security_context = "porto/prod/saude";
+
+  - id: pto-prod-servicos-classic
+    name: PTO - PROD - Porto Servicos - Classic
+    query: environment:management-zone = "PROD - Porto Servicos";
+
+  - id: pto-prod-servicos-grail
+    name: PTO - PROD - Porto Servicos - Grail
+    query: storage:dt.security_context = "porto/prod/servicos";
+
+  - id: pto-prod-bank-classic
+    name: PTO - PROD - Porto Bank - Classic
+    query: environment:management-zone = "PROD - Porto Bank";
+
+  - id: pto-prod-bank-grail
+    name: PTO - PROD - Porto Bank - Grail
+    query: storage:dt.security_context = "porto/prod/bank";
